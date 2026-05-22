@@ -1,0 +1,126 @@
+const mongoose = require("mongoose");
+
+const orderSchema = new mongoose.Schema(
+  {
+    orderId: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    buyer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    vendor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    products: [
+      {
+        product: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Product",
+          required: true,
+        },
+        quantity: {
+          type: Number,
+          required: true,
+          min: 0.1,
+        },
+
+        price: {
+          type: Number,
+          required: true,
+        },
+        vendor: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
+    productPrice: {
+      type: Number,
+      required: true,
+    },
+    totalPrice: {
+      type: Number,
+      required: true,
+    },
+    orderType: {
+      type: String,
+      enum: ["Delivery", "Pickup", "Reorder"],
+      required: true,
+    },
+    orderStatus: {
+      type: String,
+      enum: [
+        "In-process",
+        "Confirmed",
+        "Out For Delivery",
+        "Cancelled",
+        "Ready For Pickup",
+        "Completed",
+      ],
+      default: "In-process",
+    },
+    shippingAddress: {
+      type: Object, // embedded shipping address object
+    },
+
+    pickupSlot: {
+      date: {
+        type: String,
+        required: function () {
+          return this.deliveryType === "Pickup";
+        },
+      },
+      startTime: {
+        type: String,
+        required: function () {
+          return this.deliveryType === "Pickup";
+        },
+      },
+      endTime: {
+        type: String,
+        required: function () {
+          return this.deliveryType === "Pickup";
+        },
+      },
+    },
+
+    paymentMethod: {
+      type: String,
+      default: "UPI",
+    },
+    transactionId: {
+      type: String,
+    },
+    comments: {
+      type: String,
+    },
+    donation: {
+      type: Number,
+      default: 0,
+    },
+    discount: {
+      type: Number,
+      default: 0,
+    },
+    couponCode: {
+      type: String,
+      default: "",
+    },
+    deliveryCharge: {
+      type: Number,
+      default: 0,
+    },
+    qrCode: { type: String, default: null },
+    qrClosed: { type: Boolean, default: false },
+    qrExpiry: { type: Date, default: null },
+  },
+  { timestamps: true },
+);
+
+module.exports = mongoose.model("Order", orderSchema);

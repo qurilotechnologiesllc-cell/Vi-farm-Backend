@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Nearby Vendors Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f5f7fa;
+        }
+
+        header {
+            background: #0f766e;
+            color: #fff;
+            padding: 16px 24px;
+            font-size: 20px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        #map {
+            height: calc(100vh - 64px);
+            width: 100%;
+        }
+
+        .popup {
+            min-width: 220px;
+        }
+
+        .popup h3 {
+            margin: 0 0 6px;
+            font-size: 16px;
+            color: #0f766e;
+        }
+
+        .popup p {
+            margin: 4px 0;
+            font-size: 13px;
+            color: #333;
+        }
+
+        .popup img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>Nearby Vendors</header>
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        // ================= CONFIG =================
+        const API_URL = "http://localhost:5000/api/buyer/vendors/nearby?lat=28.61&lng=77.21&radius=20";
+        const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDY2YzljMGIyN2Y1MGFlZDE4YWQ3MiIsInJvbGUiOiJCdXllciIsImlhdCI6MTc2ODg5MDY3MSwiZXhwIjoxNzcwMTg2NjcxfQ.aYmvjuKdbDpn-zSNMv04UWHScmgf2gvvYDI7t7uS0Qg";
+
+        const userLat = 28.6203759;
+        const userLng = 77.0387797;
+
+        // ================= MAP INIT =================
+        const map = L.map('map').setView([userLat, userLng], 11);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // ================= ICONS =================
+        const userIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
+            iconSize: [38, 38],
+            iconAnchor: [19, 38],
+            popupAnchor: [0, -38]
+        });
+
+        const vendorIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png', // farm/vendor icon
+            iconSize: [40, 40],
+            iconAnchor: [20, 40],
+            popupAnchor: [0, -40]
+        });
+
+        // User marker
+        L.marker([userLat, userLng], { icon: userIcon })
+            .addTo(map)
+            .bindPopup("<b>You are here</b>")
+            .openPopup();
+
+        // ================= FETCH VENDORS =================
+        async function loadVendors() {
+            try {
+                const res = await fetch(API_URL, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                const json = await res.json();
+
+                if (!json.success) {
+                    alert("Failed to load vendors");
+                    return;
+                }
+
+                const bounds = [];
+
+                json.data.forEach(vendor => {
+                    const [lng, lat] = vendor.location.coordinates;
+
+                    console.log(vendor.name, lat, lng);
+
+                    const images = vendor.vendorDetails.farmImages || [];
+                    const imageHtml = images.length
+                        ? `<img src="${images[0]}" />`
+                        : '';
+
+                    const popupHtml = `
+          <div class="popup">
+            <h3>${vendor.name}</h3>
+            <p><b>Distance:</b> ${vendor.distanceKm} km</p>
+            <p><b>About:</b> ${vendor.vendorDetails.about || 'N/A'}</p>
+            <p><b>Delivery Region:</b> ${vendor.vendorDetails.deliveryRegion} km</p>
+            <p><b>UPI:</b> ${vendor.upiId}</p>
+            ${imageHtml}
+          </div>
+        `;
+
+                    L.marker([lat, lng], { icon: vendorIcon })
+                        .addTo(map)
+                        .bindPopup(popupHtml);
+
+                    bounds.push([lat, lng]);
+                });
+
+                if (bounds.length) {
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                }
+
+            } catch (err) {
+                console.error(err);
+                alert("Error loading vendors");
+            }
+        }
+
+        loadVendors();
+    </script>
+
+</body>
+
+</html>

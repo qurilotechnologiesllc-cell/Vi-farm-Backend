@@ -1,0 +1,80 @@
+const express = require('express');
+const router = express.Router();
+const multer = require('multer');
+
+const { authMiddleware, authorizeRoles } = require('../middleware/authMiddleware');
+const vendorController = require('../controllers/vendorController');
+const { upload, } = require('../services/cloudinaryService');
+const { cloudinary } = require("../services/cloudinaryService");
+
+// -------------------------
+// Protect all vendor routes
+// -------------------------
+router.use(authMiddleware);
+
+// -------------------------
+// Coupons (Vendor can see all their coupons)
+// -------------------------
+router.get('/coupons', vendorController.getVendorCoupons);              
+router.get('/coupons/:id', vendorController.getVendorCouponById);       
+router.post('/coupons/create', vendorController.createCoupon);          
+router.put('/coupons/:id', vendorController.updateVendorCoupon);        
+router.delete('/coupons/:id', vendorController.deleteVendorCoupon);     
+
+// -------------------------
+// Product Routes
+// -------------------------
+router.get('/products', vendorController.getVendorProducts);
+router.get('/products/:id', vendorController.getProductById);
+router.post('/products/add', upload.array('images', 5), vendorController.addProduct);
+router.put('/products/:id', upload.array('images', 5), vendorController.updateProduct);
+router.delete('/products/:id', vendorController.deleteProduct);
+router.put('/products/:id/status', vendorController.updateProductStatus);
+router.get('/public/products/:category', vendorController.getVendorProductsByCategory);
+
+// -------------------------
+// Orders
+// -------------------------
+router.put('/orders/:id/update-status', vendorController.updateOrderStatus);
+
+router.get('/orders', vendorController.getVendorOrders);
+router.get('/orders/stats', vendorController.getVendorOrderStats);
+router.get('/orders/monthly', vendorController.getMonthlyOrders);
+router.get('/orders/recent', vendorController.getRecentVendorOrders);
+router.get('/orders/today', vendorController.getTodaysOrders);
+
+// -------------------------
+// Dashboard
+// -------------------------
+router.get('/dashboard', vendorController.getDashboardData);
+router.get('/dashboard-analytics', vendorController.getVendorDashboardAnalytics);
+router.get('/recent-products', vendorController.getRecentListings);
+
+// -------------------------
+// Vendor Profile & Settings
+// -------------------------
+router.get('/profile', vendorController.getUserProfile);
+router.put(
+    '/profile',
+    upload.fields([
+        { name: 'profilePicture', maxCount: 1 },
+        { name: 'farmImages', maxCount: 5 },
+    ]),
+    vendorController.updateUserProfile
+);
+
+router.put('/update-language', vendorController.updateUserLanguage);
+router.put('/update-location', vendorController.updateLocationDetails);
+
+router.get('/update-location', vendorController.getLocationDetails);
+
+router.post('/change-password', vendorController.changePassword);
+router.post('/logout', vendorController.logout);
+router.put('/updatestatus', vendorController.updateUserStatus);
+
+// -------------------------
+// Role-based protection (Vendor only routes)
+// -------------------------
+router.use(authorizeRoles('Vendor'));
+
+module.exports = router;
