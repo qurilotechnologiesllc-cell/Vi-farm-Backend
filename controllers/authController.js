@@ -24,8 +24,6 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 
 
-
-
 const generateToken = (user) =>
   jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '15d' });
 
@@ -46,23 +44,32 @@ const sendAdminNotification = (req, message, data = {}) => {
 };
 
 
-
 exports.signup = asyncHandler(async (req, res) => {
   const { mobileNumber } = req.body;
+  
 
   if (!mobileNumber) {
-    return res.status(400).json({ status: 'error', message: 'Mobile number is required.' });
+    return res.status(400).json({
+      status: 'error',
+      message: 'Mobile number is required.'
+    });
   }
 
   let user = await User.findOne({ mobileNumber });
 
   if (user && user.isVerified) {
-    return res.status(400).json({ status: 'error', message: 'This mobile number is already registered.' });
+    return res.status(400).json({
+      status: 'error',
+      message: 'This mobile number is already registered.'
+    });
   }
 
-  // Generate OTP and expiry
-  const otp = otpService.generateOTP();
-  const otpExpiry = Date.now() + (process.env.OTP_EXPIRY_MINUTES || 5) * 60 * 1000; // 5 minutes
+  // Static OTP for testing
+  const otp = '1111';
+
+  const otpExpiry =
+    Date.now() +
+    (process.env.OTP_EXPIRY_MINUTES || 5) * 60 * 1000;
 
   if (user) {
     user.otp = otp;
@@ -73,66 +80,67 @@ exports.signup = asyncHandler(async (req, res) => {
       otp,
       otpExpiry,
       isVerified: false,
-      role: 'Buyer', // default role
+      role: 'Buyer'
     });
   }
 
   await user.save();
 
-  // Send OTP via SMS
-  const otpSent = await otpService.sendOTP(mobileNumber, otp);
-  if (!otpSent) {
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to send OTP. Please try again.'
-    });
-  }
+  // SMS Service Disabled Temporarily
+  // const otpSent = await otpService.sendOTP(mobileNumber, otp);
+  // if (!otpSent) {
+  //   return res.status(500).json({
+  //     status: 'error',
+  //     message: 'Failed to send OTP. Please try again.'
+  //   });
+  // }
 
   res.status(201).json({
     status: 'success',
-    message: 'OTP has been sent to your mobile number.',
-    otp // uncomment for testing only
+    message: 'OTP generated successfully. Use 111111 for verification.'
   });
 });
-
 
 
 exports.verifyOtp = asyncHandler(async (req, res) => {
   const { mobileNumber, otp } = req.body;
 
   if (!mobileNumber || !otp) {
-    return res.status(400).json({ status: 'error', message: 'Mobile number and OTP are required.' });
-  }
-
-  try {
-    const user = await User.findOne({ mobileNumber });
-
-    if (!user || !user.otp || user.otp !== otp) {
-      return res.status(400).json({ status: 'error', message: 'Invalid OTP.' });
-    }
-
-    if (!user.otpExpiry || user.otpExpiry < Date.now()) {
-      return res.status(400).json({ status: 'error', message: 'OTP has expired. Please request a new one.' });
-    }
-
-    // Mark user as verified
-    user.isVerified = true;
-    user.otp = undefined;
-    user.otpExpiry = undefined;
-
-    await user.save();
-
-    // Optional: generate JWT for immediate login
-    // const token = generateToken(user);
-
-    res.status(200).json({
-      status: 'success',
-      message: 'OTP verified successfully. Please complete your profile.'
-      // token // uncomment if sending JWT immediately
+    return res.status(400).json({
+      status: 'error',
+      message: 'Mobile number and OTP are required.'
     });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: 'Server error', error: err.message });
   }
+
+  const user = await User.findOne({ mobileNumber });
+
+  if (!user || !user.otp || user.otp !== otp) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Invalid OTP.'
+    });
+  }
+
+  if (!user.otpExpiry || user.otpExpiry < Date.now()) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'OTP has expired. Please request a new one.'
+    });
+  }
+
+  user.isVerified = true;
+  user.otp = undefined;
+  user.otpExpiry = undefined;
+
+  await user.save();
+
+  const token = generateToken(user);
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Login successful.',
+    token
+  });
 });
 
 
@@ -253,9 +261,6 @@ exports.completeProfile = async (req, res) => {
 };
 
 
-
-
-
 exports.login = async (req, res) => {
   const { mobileNumber, password } = req.body;
 
@@ -338,44 +343,59 @@ exports.login = async (req, res) => {
 };
 
 
-
-
 exports.requestOtpLogin = asyncHandler(async (req, res) => {
   const { mobileNumber } = req.body;
 
   if (!mobileNumber) {
-    return res.status(400).json({ status: 'error', message: 'Mobile number is required.' });
+    return res.status(400).json({
+      status: 'error',
+      message: 'Mobile number is required.'
+    });
   }
 
   try {
     const user = await User.findOne({ mobileNumber });
 
     if (!user || !user.isVerified) {
-      return res.status(400).json({ status: 'error', message: 'User not found or not verified.' });
+      return res.status(400).json({
+        status: 'error',
+        message: 'User not found or not verified.'
+      });
     }
 
-    // Generate OTP
-    const otp = otpService.generateOTP();
-    const otpExpiry = Date.now() + (process.env.OTP_EXPIRY_MINUTES || 5) * 60 * 1000; // 5 min expiry
+    // Generate OTP (temporarily disabled)
+    // const otp = otpService.generateOTP();
+
+    const otp = "1111";
+
+    const otpExpiry =
+      Date.now() +
+      (process.env.OTP_EXPIRY_MINUTES || 5) * 60 * 1000;
 
     user.otp = otp;
     user.otpExpiry = otpExpiry;
     await user.save();
 
-    // Send OTP via SMS
-    const sent = await otpService.sendOTP(mobileNumber, otp);
-    if (!sent) {
-      return res.status(500).json({ status: 'error', message: 'Failed to send OTP. Please try again.' });
-    }
+    // Temporarily disabled OTP sending
+    // const sent = await otpService.sendOTP(mobileNumber, otp);
+    // if (!sent) {
+    //   return res.status(500).json({
+    //     status: 'error',
+    //     message: 'Failed to send OTP. Please try again.'
+    //   });
+    // }
 
-    res.status(200).json({
+    return res.status(200).json({
       status: 'success',
-      message: 'OTP has been sent for login.',
-      otp // remove in production
+      message: 'OTP sent successfully.'
     });
 
   } catch (err) {
-    res.status(500).json({ status: 'error', message: 'Server error', error: err.message });
+    return res.status(500).json({
+      status: 'error',
+      message: 'Server error',
+      error: err.message
+    });
   }
 });
 
@@ -424,7 +444,6 @@ exports.verifyOtpLogin = asyncHandler(async (req, res) => {
 });
 
 
-
 exports.forgotPassword = async (req, res) => {
   const { mobileNumber } = req.body;
 
@@ -468,7 +487,6 @@ exports.forgotPassword = async (req, res) => {
     });
   }
 };
-
 
 
 exports.resetPassword = async (req, res) => {
@@ -556,7 +574,6 @@ exports.NewPassword = async (req, res) => {
 };
 
 
-
 exports.adminSignup = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -621,7 +638,6 @@ exports.adminLogin = asyncHandler(async (req, res) => {
 });
 
 
-
 exports.logout = asyncHandler(async (req, res) => {
   // In a real application, advanced security might involve token blacklisting (using Redis or a similar store)
   // to instantly invalidate the JWT on the server side. For a standard API, this confirmation is sufficient.
@@ -630,11 +646,6 @@ exports.logout = asyncHandler(async (req, res) => {
     message: 'Logged out successfully.'
   });
 });
-
-
-
-
-
 
 
 exports.adminRequestPasswordOtp = asyncHandler(async (req, res) => {
@@ -728,14 +739,6 @@ exports.adminRequestPasswordOtp = asyncHandler(async (req, res) => {
 });
 
 
-
-
-
-
-
-
-
-
 exports.verifyAdminPasswordOtp = asyncHandler(async (req, res) => {
   const { otp } = req.body;
 
@@ -768,8 +771,6 @@ exports.verifyAdminPasswordOtp = asyncHandler(async (req, res) => {
     message: "OTP verified successfully. You can now reset password.",
   });
 });
-
-
 
 
 // controllers/authController.js (or wherever you keep auth controllers)
