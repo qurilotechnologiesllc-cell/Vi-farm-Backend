@@ -2,38 +2,21 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const otpService = require('../services/otpService');
-const axios = require('axios');
 const NotificationSettings = require('../models/NotificationSettings');
-
-const nodemailer = require('nodemailer');
-
 const asyncHandler = require('express-async-handler');
-const crypto = require('crypto');
 
 const Notification = require('../models/Notification');
 const { createAndSendNotification } = require('../utils/notificationUtils');
-const { Expo } = require("expo-server-sdk");
-const expo = new Expo();
 
-const { sendEmailOTP } = require("../services/emailService");
+const { sendEmailOtp } = require('../services/emailService');
 
-const sgMail = require("@sendgrid/mail");
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
-// 🔥 INIT RESEND (ONCE)
-
-
-
-const generateToken = (user) =>
-  jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '15d' });
-
+const generateToken = (user) => jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '15d' });
 
 
 const hashPassword = async (password) => {
   const salt = await bcrypt.genSalt(10);
   return bcrypt.hash(password, salt);
 };
-
 
 // --- Socket notification helper ---
 const sendAdminNotification = (req, message, data = {}) => {
@@ -144,7 +127,6 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
 });
 
 
-
 exports.setNewPassword = async (req, res) => {
   const { mobileNumber, password, confirmPassword } = req.body;
   try {
@@ -167,7 +149,6 @@ exports.setNewPassword = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Server error', error: err.message });
   }
 };
-
 
 
 exports.completeProfile = async (req, res) => {
@@ -574,6 +555,8 @@ exports.NewPassword = async (req, res) => {
 };
 
 
+
+// --- Admin Controllers ---
 exports.adminSignup = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -649,92 +632,49 @@ exports.logout = asyncHandler(async (req, res) => {
 
 
 exports.adminRequestPasswordOtp = asyncHandler(async (req, res) => {
-  console.log("🔥 adminRequestPasswordOtp HIT");
-  console.log("📥 Request body:", req.body);
-
-  const { email } = req.body;
-
-  if (!email) {
-    console.warn("⚠️ Email missing in request");
-    return res.status(400).json({
-      success: false,
-      message: "Email is required",
-    });
-  }
-
-  console.log("🔍 Finding admin with email:", email);
-
-  const user = await User.findOne({ email, role: "Admin" });
-
-  if (!user) {
-    console.warn("❌ Admin not found for email:", email);
-    return res.status(404).json({
-      success: false,
-      message: "Admin email not found",
-    });
-  }
-
-  console.log("✅ Admin found:", user._id.toString());
-
-  // ✅ 4-digit OTP
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
-  console.log("🔐 Generated OTP:", otp);
-
-  user.passwordResetOtp = otp;
-  user.passwordResetOtpExpires = Date.now() + 10 * 60 * 1000;
-  user.isVerified = false;
-
-  await user.save();
-  console.log("💾 OTP saved in DB for admin");
-
-  // 🚀 RESPONSE FIRST (Render-safe)
-  res.json({
-    success: true,
-    message: "OTP sent to registered email",
-    otp, // ⚠️ testing only — remove in production
-  });
-
-  console.log("📤 Response sent to client");
-
-  // 🔥 SENDGRID EMAIL (BACKGROUND)
   try {
-    console.log("📧 Preparing SendGrid email…");
+    const { email } = req.body;
 
-    console.log(
-      "🔑 SendGrid env check:",
-      "KEY exists:", !!process.env.SENDGRID_API_KEY,
-      "FROM:", process.env.SENDGRID_FROM_EMAIL
-    );
-
-    const msg = {
-      to: user.email, // ✅ dynamic user email
-      from: process.env.SENDGRID_FROM_EMAIL, // ✅ verified single sender
-      subject: "Admin Password Reset OTP",
-      html: `
-        <h3>OTP Verification</h3>
-        <p>Your OTP is <b>${otp}</b></p>
-        <p>This OTP is valid for 10 minutes.</p>
-      `,
-    };
-
-    sgMail
-      .send(msg)
-      .then((response) => {
-        console.log("✅ OTP email sent via SendGrid");
-        console.log("📨 SendGrid response status:", response[0]?.statusCode);
-      })
-      .catch(async (err) => {
-        console.error("❌ SendGrid email failed:", err.message);
-
-        // optional rollback
-        user.passwordResetOtp = undefined;
-        user.passwordResetOtpExpires = undefined;
-        await user.save();
-        console.log("↩️ OTP rolled back due to email failure");
+    if (!email) {
+      console.warn("⚠️ Email missing in request");
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
       });
+    }
 
-  } catch (err) {
-    console.error("❌ SendGrid background error:", err.message);
+    const user = await User.findOne({ email, role: "Admin" });
+
+    if (!user) {
+      console.warn("❌ Admin not found for email:", email);
+      return res.status(404).json({
+        success: false,
+        message: "Admin email not found",
+      });
+    }
+
+    // ✅ 4-digit OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+      // ✅ Send OTP via email 
+    await sendEmailOtp(email, otp, user.name);
+
+    user.passwordResetOtp = otp;
+    user.passwordResetOtpExpires = Date.now() + 10 * 60 * 1000;
+    user.isVerified = false;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "OTP sent to registered email",
+    });
+  } catch (error) {
+    console.error("❌ Error occurred while sending OTP:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 });
 
@@ -773,7 +713,6 @@ exports.verifyAdminPasswordOtp = asyncHandler(async (req, res) => {
 });
 
 
-// controllers/authController.js (or wherever you keep auth controllers)
 exports.adminResetPasswordByOtp = asyncHandler(async (req, res) => {
   const { newPassword, confirmPassword } = req.body;
 

@@ -1,40 +1,41 @@
-const axios = require("axios");
-require("dotenv").config();
+const SibApiV3Sdk = require('sib-api-v3-sdk')
 
-const sendEmailOTP = async (to, otp) => {
-  const subject = "Your ViaFarm OTP Code";
-  const html = `
-    <div style="font-family: Arial, sans-serif; font-size:16px;">
-      <h2>🔐 Your ViaFarm OTP</h2>
-      <p>Your OTP is: <b style="font-size:20px;">${otp}</b></p>
-      <p>This code will expire in 5 minutes.</p>
-      <p style="margin-top:20px;">If you didn’t request this, please ignore this email.</p>
-    </div>
-  `;
+const defaultClient = SibApiV3Sdk.ApiClient.instance
+const apiKey = defaultClient.authentications['api-key']
+apiKey.apiKey = process.env.BREVO_API_KEY
 
+const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi()
+
+const sendEmailOtp = async (email, otp, name) => {  // ← name add kiya!
   try {
-    const response = await axios.post(
-      "https://api.brevo.com/v3/smtp/email",
-      {
-        sender: { name: "ViaFarm", email: process.env.EMAIL_FROM },
-        to: [{ email: to }],
-        subject,
-        htmlContent: html,
+    const response = await apiInstance.sendTransacEmail({
+
+      sender: {
+        email: process.env.BREVO_USER,
+        name: "ViFarm Team",
       },
-      {
-        headers: {
-          "api-key": process.env.BREVO_API_KEY,
-          "Content-Type": "application/json",
+
+      to: [
+        {
+          email: email,
+          name: name,   // ← Ye bhi add karo!
         },
-      }
-    );
+      ],
 
-    console.log("✅ OTP Email sent via Brevo:", response.data);
-    return true;
+      templateId: 6,        // ← URL mein /edit/3 dikh raha hai!
+
+      params: {
+        name: name,     // ← {{params.name}} ke liye ✅
+        otp: otp,      // ← {{params.otp}} ke liye ✅
+        expiry: "10",     // ← {{params.expiry}} ke liye ✅
+      },
+    });
+
+    console.log("Email Sent!", response)
+
   } catch (error) {
-    console.error("❌ OTP email failed:", error.response?.data || error.message);
-    return false;
+    console.log(error.response?.body || error.message)
   }
-};
+}
 
-module.exports = { sendEmailOTP };
+module.exports = { sendEmailOtp }

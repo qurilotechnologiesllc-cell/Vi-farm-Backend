@@ -16,7 +16,7 @@ const StaticPage = require('../models/StaticPage');
 const { createAndSendNotification } = require('../utils/notificationUtils');
 const { addressToCoords, coordsToAddress } = require('../utils/geocode');
 const axios = require('axios');
-const { cloudinaryUpload, cloudinaryDestroy,upload } = require("../services/cloudinaryService");
+const { cloudinaryUpload, cloudinaryDestroy, upload } = require("../services/cloudinaryService");
 
 const Notification = require('../models/Notification');
 const { Expo } = require("expo-server-sdk");
@@ -26,192 +26,194 @@ const Address = require('../models/Address');
 
 
 const calculateChange = (current, previous) => {
-    if (previous === 0) return current === 0 ? 0 : 100;
-    return ((current - previous) / previous) * 100;
+  if (previous === 0) return current === 0 ? 0 : 100;
+  return ((current - previous) / previous) * 100;
 };
 
 // Format the change into a readable string (e.g., "+12%" or "-8%")
 const formatChange = (value) => {
-    const prefix = value >= 0 ? '+' : '';
-    return `${prefix}${value.toFixed(1)}%`;
+  const prefix = value >= 0 ? '+' : '';
+  return `${prefix}${value.toFixed(1)}%`;
 };
 
 
 const getDashboardStats = asyncHandler(async (req, res) => {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
-    // 1️⃣ Vendors (Active)
-    const activeVendors = await User.countDocuments({ role: 'Vendor', status: 'Active' });
-    const activeVendorsPrevious = await User.countDocuments({
-        role: 'Vendor',
-        status: 'Active',
-        createdAt: { $lt: oneMonthAgo },
-    });
+  // 1️⃣ Vendors (Active)
+  const activeVendors = await User.countDocuments({ role: 'Vendor', status: 'Active' });
+  const activeVendorsPrevious = await User.countDocuments({
+    role: 'Vendor',
+    status: 'Active',
+    createdAt: { $lt: oneMonthAgo },
+  });
 
-    // 2️⃣ Buyers (Active)
-    const activeBuyers = await User.countDocuments({ role: 'Buyer', status: 'Active' });
-    const activeBuyersPrevious = await User.countDocuments({
-        role: 'Buyer',
-        status: 'Active',
-        createdAt: { $lt: oneMonthAgo },
-    });
+  // 2️⃣ Buyers (Active)
+  const activeBuyers = await User.countDocuments({ role: 'Buyer', status: 'Active' });
+  const activeBuyersPrevious = await User.countDocuments({
+    role: 'Buyer',
+    status: 'Active',
+    createdAt: { $lt: oneMonthAgo },
+  });
 
-    // 3️⃣ Products (In Stock)
-    const activeProducts = await Product.countDocuments({ status: 'In Stock' });
-    const activeProductsPrevious = await Product.countDocuments({
-        status: 'In Stock',
-        createdAt: { $lt: oneMonthAgo },
-    });
+  // 3️⃣ Products (In Stock)
+  const activeProducts = await Product.countDocuments({ status: 'In Stock' });
+  const activeProductsPrevious = await Product.countDocuments({
+    status: 'In Stock',
+    createdAt: { $lt: oneMonthAgo },
+  });
 
-    // 4️⃣ Orders (Confirmed or In Process)
-    const orderFilter = { orderStatus: { $in: ['Confirmed', 'In Process'] } };
-    const activeOrders = await Order.countDocuments(orderFilter);
-    const activeOrdersPrevious = await Order.countDocuments({
-        ...orderFilter,
-        createdAt: { $lt: oneMonthAgo },
-    });
+  // 4️⃣ Orders (Confirmed or In Process)
+  const orderFilter = { orderStatus: { $in: ['Confirmed', 'In Process'] } };
+  const activeOrders = await Order.countDocuments(orderFilter);
+  const activeOrdersPrevious = await Order.countDocuments({
+    ...orderFilter,
+    createdAt: { $lt: oneMonthAgo },
+  });
 
-    // Helper: Build stat object
-    const buildStat = (current, previous) => {
-        const changeValue = calculateChange(current, previous);
-        return {
-            current,
-            change: formatChange(changeValue),
-            increased: current >= previous, // ✅ true if increased, false if decreased
-        };
+  // Helper: Build stat object
+  const buildStat = (current, previous) => {
+    const changeValue = calculateChange(current, previous);
+    return {
+      current,
+      change: formatChange(changeValue),
+      increased: current >= previous, // ✅ true if increased, false if decreased
     };
+  };
 
-    // Final Response Object
-    const stats = {
-        vendors: buildStat(activeVendors, activeVendorsPrevious),
-        buyers: buildStat(activeBuyers, activeBuyersPrevious),
-        products: buildStat(activeProducts, activeProductsPrevious),
-        orders: buildStat(activeOrders, activeOrdersPrevious),
-    };
+  // Final Response Object
+  const stats = {
+    vendors: buildStat(activeVendors, activeVendorsPrevious),
+    buyers: buildStat(activeBuyers, activeBuyersPrevious),
+    products: buildStat(activeProducts, activeProductsPrevious),
+    orders: buildStat(activeOrders, activeOrdersPrevious),
+  };
 
-    res.status(200).json({
-        success: true,
-        data: stats,
-    });
+  res.status(200).json({
+    success: true,
+    data: stats,
+  });
 });
+
 
 const getRecentActivity = asyncHandler(async (req, res) => {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
 
-    const recentRegistrations = await User.find({ role: 'Buyer' })
-        .select('name createdAt profilePicture')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+  const recentRegistrations = await User.find({ role: 'Buyer' })
+    .select('name createdAt profilePicture')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
 
-    const totalCount = await User.countDocuments({ role: 'Buyer' });
+  const totalCount = await User.countDocuments({ role: 'Buyer' });
 
-    res.status(200).json({
-        success: true,
-        data: {
-            activities: recentRegistrations,
-            page,
-            pages: Math.ceil(totalCount / limit),
-            total: totalCount,
-        },
-    });
+  res.status(200).json({
+    success: true,
+    data: {
+      activities: recentRegistrations,
+      page,
+      pages: Math.ceil(totalCount / limit),
+      total: totalCount,
+    },
+  });
 });
+
 
 const getProducts = asyncHandler(async (req, res) => {
-    const { q, category } = req.query;
+  const { q, category } = req.query;
 
-    const query = {};
+  const query = {};
 
-    // 🔍 Search by product name or vendor name
-    if (q) {
-        const matchingVendors = await User.find({
-            role: "Vendor",
-            name: { $regex: q, $options: "i" },
-        }).select("_id");
+  // 🔍 Search by product name or vendor name
+  if (q) {
+    const matchingVendors = await User.find({
+      role: "Vendor",
+      name: { $regex: q, $options: "i" },
+    }).select("_id");
 
-        const vendorIds = matchingVendors.map((vendor) => vendor._id);
+    const vendorIds = matchingVendors.map((vendor) => vendor._id);
 
-        query.$or = [
-            { name: { $regex: q, $options: "i" } },
-            { vendor: { $in: vendorIds } },
-        ];
-    }
+    query.$or = [
+      { name: { $regex: q, $options: "i" } },
+      { vendor: { $in: vendorIds } },
+    ];
+  }
 
-    // 🏷 Filter by category NAME
-    if (category) {
-        const cat = await Category.findOne({
-            name: { $regex: category, $options: "i" }
-        });
-
-        if (cat) {
-            query.category = cat._id;
-        }
-    }
-
-    // 📦 Fetch all matching products
-    const products = await Product.find(query)
-        .populate("vendor", "name")              // vendor remains same structure
-        .populate("category", "name")            // populate category NAME
-        .select("name category price unit createdAt vendor")
-        .sort({ createdAt: -1 });
-
-    // 🎯 Final Format: SAME structure, ONLY category = name
-    const finalData = products.map((item) => ({
-        _id: item._id,
-        name: item.name,
-        vendor: item.vendor,                    // SAME as before
-        category: item.category?.name || null,  // ONLY NAME
-        price: item.price,
-        unit: item.unit,
-        createdAt: item.createdAt,
-    }));
-
-    res.status(200).json({
-        success: true,
-        total: finalData.length,
-        data: finalData,
+  // 🏷 Filter by category NAME
+  if (category) {
+    const cat = await Category.findOne({
+      name: { $regex: category, $options: "i" }
     });
-});
 
+    if (cat) {
+      query.category = cat._id;
+    }
+  }
+
+  // 📦 Fetch all matching products
+  const products = await Product.find(query)
+    .populate("vendor", "name")              // vendor remains same structure
+    .populate("category", "name")            // populate category NAME
+    .select("name category price unit createdAt vendor")
+    .sort({ createdAt: -1 });
+
+  // 🎯 Final Format: SAME structure, ONLY category = name
+  const finalData = products.map((item) => ({
+    _id: item._id,
+    name: item.name,
+    vendor: item.vendor,                    // SAME as before
+    category: item.category?.name || null,  // ONLY NAME
+    price: item.price,
+    unit: item.unit,
+    createdAt: item.createdAt,
+  }));
+
+  res.status(200).json({
+    success: true,
+    total: finalData.length,
+    data: finalData,
+  });
+});
 
 
 const getAdminProductDetails = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({
-            success: false,
-            message: "Invalid product ID."
-        });
-    }
-
-    const product = await Product.findById(id)
-        .populate("vendor", "name profilePicture address")
-        .populate("category", "name");   // ✅ category name only
-
-    if (!product) {
-        return res.status(404).json({
-            success: false,
-            message: "Product not found."
-        });
-    }
-
-    // 🎯 Convert category object → only name
-    const formattedProduct = {
-        ...product.toObject(),
-        category: product.category?.name || null  // ✅ only name
-    };
-
-    res.status(200).json({
-        success: true,
-        data: {
-            product: formattedProduct
-        }
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid product ID."
     });
+  }
+
+  const product = await Product.findById(id)
+    .populate("vendor", "name profilePicture address")
+    .populate("category", "name");   // ✅ category name only
+
+  if (!product) {
+    return res.status(404).json({
+      success: false,
+      message: "Product not found."
+    });
+  }
+
+  // 🎯 Convert category object → only name
+  const formattedProduct = {
+    ...product.toObject(),
+    category: product.category?.name || null  // ✅ only name
+  };
+
+  res.status(200).json({
+    success: true,
+    data: {
+      product: formattedProduct
+    }
+  });
 });
+
 
 const addOrUpdateNutritionalValue = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -308,7 +310,6 @@ const addOrUpdateNutritionalValue = asyncHandler(async (req, res) => {
     data: product.nutritionalValue,
   });
 });
-
 
 
 const deleteProduct = asyncHandler(async (req, res) => {
@@ -430,37 +431,37 @@ const deleteProduct = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/vendors
 // @access  Private/Admin
 const getVendors = asyncHandler(async (req, res) => {
-    const { q, status } = req.query;
+  const { q, status } = req.query;
 
-    const query = { role: 'Vendor' };
+  const query = { role: 'Vendor' };
 
-    // 🔍 Search by name
-    if (q) {
-        query.name = { $regex: q, $options: 'i' };
-    }
+  // 🔍 Search by name
+  if (q) {
+    query.name = { $regex: q, $options: 'i' };
+  }
 
-    // ⚙️ Filter by status
-    if (status) {
-        query.status = status;
-    }
+  // ⚙️ Filter by status
+  if (status) {
+    query.status = status;
+  }
 
-    // ✅ Fetch all vendors (no pagination)
-    const vendors = await User.find(query)
-        .select('name address mobileNumber status profilePicture')
-        .sort({ createdAt: -1 });
+  // ✅ Fetch all vendors (no pagination)
+  const vendors = await User.find(query)
+    .select('name address mobileNumber status profilePicture')
+    .sort({ createdAt: -1 });
 
-    res.status(200).json({
-        success: true,
-        total: vendors.length,
-        data: vendors.map(vendor => ({
-            _id: vendor._id,
-            name: vendor.name,
-            mobileNumber: vendor.mobileNumber,
-            status: vendor.status,
-            profilePicture: vendor.profilePicture,
-            address: vendor.address // Include full address object
-        }))
-    });
+  res.status(200).json({
+    success: true,
+    total: vendors.length,
+    data: vendors.map(vendor => ({
+      _id: vendor._id,
+      name: vendor.name,
+      mobileNumber: vendor.mobileNumber,
+      status: vendor.status,
+      profilePicture: vendor.profilePicture,
+      address: vendor.address // Include full address object
+    }))
+  });
 });
 
 
@@ -471,38 +472,38 @@ const getVendors = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 // controllers/adminController.js
 const getVendorDetails = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    // Fetch vendor by ID
-    const vendor = await User.findById(id)
-        .select('name address mobileNumber profilePicture  status vendorDetails role rejectionReason'); // include rejectionReason
+  // Fetch vendor by ID
+  const vendor = await User.findById(id)
+    .select('name address mobileNumber profilePicture  status vendorDetails role rejectionReason'); // include rejectionReason
 
-    if (!vendor || vendor.role !== 'Vendor') {
-        return res.status(404).json({ success: false, message: 'Vendor not found.' });
+  if (!vendor || vendor.role !== 'Vendor') {
+    return res.status(404).json({ success: false, message: 'Vendor not found.' });
+  }
+
+  // Fetch vendor's listed products
+  const listedProducts = await Product.find({ vendor: id })
+    .select('name category variety unit weightPerPiece quantity price status images createdAt')
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    data: {
+      vendor: {
+        _id: vendor._id,
+        name: vendor.name,
+        mobileNumber: vendor.mobileNumber,
+        status: vendor.status,
+        profilePicture: vendor.profilePicture,
+        address: vendor.address,          // Full address object
+        vendorDetails: vendor.vendorDetails,
+        // Only include rejectionReason if vendor status is 'Rejected'
+        ...(vendor.status === 'Reject' && { rejectionReason: vendor.rejectionReason || 'Not specified' }),
+      },
+      listedProducts
     }
-
-    // Fetch vendor's listed products
-    const listedProducts = await Product.find({ vendor: id })
-        .select('name category variety unit weightPerPiece quantity price status images createdAt')
-        .sort({ createdAt: -1 });
-
-    res.status(200).json({
-        success: true,
-        data: {
-            vendor: {
-                _id: vendor._id,
-                name: vendor.name,
-                mobileNumber: vendor.mobileNumber,
-                status: vendor.status,
-                profilePicture: vendor.profilePicture,
-                address: vendor.address,          // Full address object
-                vendorDetails: vendor.vendorDetails,
-                // Only include rejectionReason if vendor status is 'Rejected'
-                ...(vendor.status === 'Reject' && { rejectionReason: vendor.rejectionReason || 'Not specified' }),
-            },
-            listedProducts
-        }
-    });
+  });
 });
 
 
@@ -736,148 +737,148 @@ const deleteVendor = asyncHandler(async (req, res) => {
 
 
 const getBuyerDetails = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    // 1. Find buyer
-    const buyer = await User.findById(id).select(
-        "name address mobileNumber profilePicture role"
-    );
+  // 1. Find buyer
+  const buyer = await User.findById(id).select(
+    "name address mobileNumber profilePicture role"
+  );
 
-    if (!buyer || buyer.role !== "Buyer") {
-        return res
-            .status(404)
-            .json({ success: false, message: "Buyer not found." });
-    }
+  if (!buyer || buyer.role !== "Buyer") {
+    return res
+      .status(404)
+      .json({ success: false, message: "Buyer not found." });
+  }
 
-    // 2. Count orders
-    const totalOrders = await Order.countDocuments({ buyer: id });
+  // 2. Count orders
+  const totalOrders = await Order.countDocuments({ buyer: id });
 
-    // 3. Fetch buyer's orders with populated products and vendor
-    const orders = await Order.find({ buyer: id })
-        .populate({
-            path: "products.product", // product details
-            select:
-                "name variety unit rating quantity weightPerPiece category price images",
-        })
-        .populate({
-            path: "vendor", // ✅ populate vendor info
-            select: "name ",
-        })
-        .sort({ createdAt: -1 });
+  // 3. Fetch buyer's orders with populated products and vendor
+  const orders = await Order.find({ buyer: id })
+    .populate({
+      path: "products.product", // product details
+      select:
+        "name variety unit rating quantity weightPerPiece category price images",
+    })
+    .populate({
+      path: "vendor", // ✅ populate vendor info
+      select: "name ",
+    })
+    .sort({ createdAt: -1 });
 
-    // 4. Response
-    res.status(200).json({
-        success: true,
-        data: {
-            buyer: {
-                name: buyer.name,
-                location: buyer.address,
-                contactNo: buyer.mobileNumber,
-                profilePicture: buyer.profilePicture,
-                totalOrders,
-            },
-            orders: orders.map((order) => ({
-                ...order.toObject(),
-                vendorDetails: order.vendor
-                    ? {
-                        name: order.vendor.name,
-                        shopName: order.vendor.shopName,
-                        mobileNumber: order.vendor.mobileNumber,
-                        profilePicture: order.vendor.profilePicture,
-                    }
-                    : null,
-            })),
-        },
-    });
+  // 4. Response
+  res.status(200).json({
+    success: true,
+    data: {
+      buyer: {
+        name: buyer.name,
+        location: buyer.address,
+        contactNo: buyer.mobileNumber,
+        profilePicture: buyer.profilePicture,
+        totalOrders,
+      },
+      orders: orders.map((order) => ({
+        ...order.toObject(),
+        vendorDetails: order.vendor
+          ? {
+            name: order.vendor.name,
+            shopName: order.vendor.shopName,
+            mobileNumber: order.vendor.mobileNumber,
+            profilePicture: order.vendor.profilePicture,
+          }
+          : null,
+      })),
+    },
+  });
 });
 
 const getBuyers = asyncHandler(async (req, res) => {
-    const buyers = await User.aggregate([
-        { $match: { role: "Buyer" } },
+  const buyers = await User.aggregate([
+    { $match: { role: "Buyer" } },
 
-        // ✅ Lookup total orders as Buyer
-        {
-            $lookup: {
-                from: "orders",
-                let: { buyerId: "$_id" },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: { $eq: ["$buyer", "$$buyerId"] } // match all orders placed by this buyer
-                        }
-                    }
-                ],
-                as: "orders"
+    // ✅ Lookup total orders as Buyer
+    {
+      $lookup: {
+        from: "orders",
+        let: { buyerId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ["$buyer", "$$buyerId"] } // match all orders placed by this buyer
             }
-        },
-        {
-            $addFields: {
-                totalOrders: { $size: "$orders" },
-                totalOrdersAsBuyer: { $size: "$orders" }
-            }
-        },
+          }
+        ],
+        as: "orders"
+      }
+    },
+    {
+      $addFields: {
+        totalOrders: { $size: "$orders" },
+        totalOrdersAsBuyer: { $size: "$orders" }
+      }
+    },
 
-        // ✅ Lookup Addresses for Buyer
-        {
-            $lookup: {
-                from: "addresses",
-                localField: "_id",
-                foreignField: "user",
-                as: "addresses"
-            }
-        },
+    // ✅ Lookup Addresses for Buyer
+    {
+      $lookup: {
+        from: "addresses",
+        localField: "_id",
+        foreignField: "user",
+        as: "addresses"
+      }
+    },
 
-        // ✅ Fallback to user's embedded address if no separate address exists
-        {
-            $addFields: {
-                addresses: {
-                    $cond: [
-                        { $eq: [{ $size: "$addresses" }, 0] },
-                        {
-                            $cond: [
-                                { $ifNull: ["$address", false] },
-                                ["$address"], // wrap embedded address in array
-                                []
-                            ]
-                        },
-                        "$addresses"
-                    ]
-                }
-            }
-        },
+    // ✅ Fallback to user's embedded address if no separate address exists
+    {
+      $addFields: {
+        addresses: {
+          $cond: [
+            { $eq: [{ $size: "$addresses" }, 0] },
+            {
+              $cond: [
+                { $ifNull: ["$address", false] },
+                ["$address"], // wrap embedded address in array
+                []
+              ]
+            },
+            "$addresses"
+          ]
+        }
+      }
+    },
 
-        // ✅ Final clean projection
-        {
-            $project: {
-                _id: 1,
-                name: 1,
-                mobileNumber: 1,
-                addresses: 1,
-                totalOrders: 1,
-                totalOrdersAsBuyer: 1,
-                createdAt: 1
-            }
-        },
+    // ✅ Final clean projection
+    {
+      $project: {
+        _id: 1,
+        name: 1,
+        mobileNumber: 1,
+        addresses: 1,
+        totalOrders: 1,
+        totalOrdersAsBuyer: 1,
+        createdAt: 1
+      }
+    },
 
-        { $sort: { createdAt: -1 } } // recent buyers first
-    ]);
+    { $sort: { createdAt: -1 } } // recent buyers first
+  ]);
 
-    res.status(200).json({
-        success: true,
-        total: buyers.length,
-        data: buyers
-    });
+  res.status(200).json({
+    success: true,
+    total: buyers.length,
+    data: buyers
+  });
 });
 
 const blockBuyer = asyncHandler(async (req, res) => {
-    const buyer = await User.findById(req.params.id);
-    if (buyer) {
-        buyer.status = 'Blocked';
-        await buyer.save();
-        res.json({ message: 'Buyer blocked' });
-    } else {
-        res.status(404).json({ message: 'Buyer not found' });
-    }
+  const buyer = await User.findById(req.params.id);
+  if (buyer) {
+    buyer.status = 'Blocked';
+    await buyer.save();
+    res.json({ message: 'Buyer blocked' });
+  } else {
+    res.status(404).json({ message: 'Buyer not found' });
+  }
 });
 
 const deleteBuyer = asyncHandler(async (req, res) => {
@@ -988,117 +989,117 @@ const deleteBuyer = asyncHandler(async (req, res) => {
 
 
 const getOrders = asyncHandler(async (req, res) => {
-    const { q } = req.query;
+  const { q } = req.query;
 
-    // 🔍 Search condition for buyer name, vendor name, or orderId
-    const searchStage = q
-        ? {
-            $or: [
-                { orderId: { $regex: q, $options: "i" } },
-                { "buyerInfo.name": { $regex: q, $options: "i" } },
-                { "vendorInfo.name": { $regex: q, $options: "i" } },
+  // 🔍 Search condition for buyer name, vendor name, or orderId
+  const searchStage = q
+    ? {
+      $or: [
+        { orderId: { $regex: q, $options: "i" } },
+        { "buyerInfo.name": { $regex: q, $options: "i" } },
+        { "vendorInfo.name": { $regex: q, $options: "i" } },
+      ],
+    }
+    : {};
+
+  // --- Aggregation pipeline (without pagination) ---
+  const pipeline = [
+    // 1️⃣ Lookup Buyer Info
+    {
+      $lookup: {
+        from: "users",
+        localField: "buyer",
+        foreignField: "_id",
+        as: "buyerInfo",
+      },
+    },
+    { $unwind: "$buyerInfo" },
+
+    // 2️⃣ Lookup Vendor Info
+    {
+      $lookup: {
+        from: "users",
+        localField: "vendor",
+        foreignField: "_id",
+        as: "vendorInfo",
+      },
+    },
+    { $unwind: "$vendorInfo" },
+
+    // 3️⃣ Apply search if provided
+    { $match: searchStage },
+
+    // 4️⃣ Sort newest first
+    { $sort: { createdAt: -1 } },
+
+    // 5️⃣ Project fields cleanly
+    {
+      $project: {
+        _id: 1,
+        orderId: 1,
+        totalPrice: 1,
+        createdAt: 1,
+        buyer: "$buyerInfo.name",
+        vendor: "$vendorInfo.name",
+        action: "View",
+        status: {
+          $switch: {
+            branches: [
+              { case: { $eq: ["$orderStatus", "In-process"] }, then: "In Process" },
+              { case: { $eq: ["$orderStatus", "Confirmed"] }, then: "In Process" },
+              { case: { $eq: ["$orderStatus", "Completed"] }, then: "Completed" },
+              { case: { $eq: ["$orderStatus", "Cancelled"] }, then: "Cancelled" },
             ],
-        }
-        : {};
-
-    // --- Aggregation pipeline (without pagination) ---
-    const pipeline = [
-        // 1️⃣ Lookup Buyer Info
-        {
-            $lookup: {
-                from: "users",
-                localField: "buyer",
-                foreignField: "_id",
-                as: "buyerInfo",
-            },
+            default: "Unknown",
+          },
         },
-        { $unwind: "$buyerInfo" },
+      },
+    },
+  ];
 
-        // 2️⃣ Lookup Vendor Info
-        {
-            $lookup: {
-                from: "users",
-                localField: "vendor",
-                foreignField: "_id",
-                as: "vendorInfo",
-            },
-        },
-        { $unwind: "$vendorInfo" },
+  // Run aggregation
+  const orders = await Order.aggregate(pipeline);
 
-        // 3️⃣ Apply search if provided
-        { $match: searchStage },
-
-        // 4️⃣ Sort newest first
-        { $sort: { createdAt: -1 } },
-
-        // 5️⃣ Project fields cleanly
-        {
-            $project: {
-                _id: 1,
-                orderId: 1,
-                totalPrice: 1,
-                createdAt: 1,
-                buyer: "$buyerInfo.name",
-                vendor: "$vendorInfo.name",
-                action: "View",
-                status: {
-                    $switch: {
-                        branches: [
-                            { case: { $eq: ["$orderStatus", "In-process"] }, then: "In Process" },
-                            { case: { $eq: ["$orderStatus", "Confirmed"] }, then: "In Process" },
-                            { case: { $eq: ["$orderStatus", "Completed"] }, then: "Completed" },
-                            { case: { $eq: ["$orderStatus", "Cancelled"] }, then: "Cancelled" },
-                        ],
-                        default: "Unknown",
-                    },
-                },
-            },
-        },
-    ];
-
-    // Run aggregation
-    const orders = await Order.aggregate(pipeline);
-
-    res.status(200).json({
-        success: true,
-        total: orders.length,
-        data: orders,
-    });
+  res.status(200).json({
+    success: true,
+    total: orders.length,
+    data: orders,
+  });
 });
 
 const getOrderDetail = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    const order = await Order.findById(id)
-        .populate('buyer', 'name')
-        .populate({
-            path: 'products.product',  // ✅ correct field
-            select: 'name variety price unit'
-        });
-
-    if (!order) {
-        return res.status(404).json({ success: false, message: 'Order not found.' });
-    }
-
-    // Format response
-    const formattedItems = order.products.map(p => ({
-        name: p.product ? `${p.product.name} (${p.product.variety})` : null,
-        quantity: p.quantity,
-        unit: p.product?.unit || null,
-        price: p.price * p.quantity
-    }));
-
-    res.status(200).json({
-        success: true,
-        data: {
-            orderId: order.orderId,
-            buyer: order.buyer?.name || null,
-            items: formattedItems,
-            totalPrice: order.totalPrice,
-            status: order.orderStatus,
-            type: order.orderType
-        }
+  const order = await Order.findById(id)
+    .populate('buyer', 'name')
+    .populate({
+      path: 'products.product',  // ✅ correct field
+      select: 'name variety price unit'
     });
+
+  if (!order) {
+    return res.status(404).json({ success: false, message: 'Order not found.' });
+  }
+
+  // Format response
+  const formattedItems = order.products.map(p => ({
+    name: p.product ? `${p.product.name} (${p.product.variety})` : null,
+    quantity: p.quantity,
+    unit: p.product?.unit || null,
+    price: p.price * p.quantity
+  }));
+
+  res.status(200).json({
+    success: true,
+    data: {
+      orderId: order.orderId,
+      buyer: order.buyer?.name || null,
+      items: formattedItems,
+      totalPrice: order.totalPrice,
+      status: order.orderStatus,
+      type: order.orderType
+    }
+  });
 });
 
 
@@ -1252,37 +1253,37 @@ const deleteOrder = asyncHandler(async (req, res) => {
 
 
 const getBanners = asyncHandler(async (req, res) => {
-    const { placement, status } = req.query;
+  const { placement, status } = req.query;
 
-    // Build query object
-    const query = {};
-    if (placement) query.placement = placement;
-    if (status) query.status = status;
+  // Build query object
+  const query = {};
+  if (placement) query.placement = placement;
+  if (status) query.status = status;
 
-    // Fetch banners
-    const banners = await Banner.find(query).sort({ createdAt: -1 }); // newest first
-    console.log("banner", banners)
-    res.status(200).json({
-        success: true,
-        count: banners.length,
-        banners
-    });
+  // Fetch banners
+  const banners = await Banner.find(query).sort({ createdAt: -1 }); // newest first
+  console.log("banner", banners)
+  res.status(200).json({
+    success: true,
+    count: banners.length,
+    banners
+  });
 });
 
 const getBannersByPlacement = asyncHandler(async (req, res) => {
-    const { placement } = req.params;
+  const { placement } = req.params;
 
-    if (!placement) {
-        return res.status(400).json({ success: false, message: 'Placement is required' });
-    }
+  if (!placement) {
+    return res.status(400).json({ success: false, message: 'Placement is required' });
+  }
 
-    const banners = await Banner.find({ placement, status: 'Active' }).sort({ createdAt: -1 });
+  const banners = await Banner.find({ placement, status: 'Active' }).sort({ createdAt: -1 });
 
-    res.status(200).json({
-        success: true,
-        count: banners.length,
-        data: banners
-    });
+  res.status(200).json({
+    success: true,
+    count: banners.length,
+    data: banners
+  });
 });
 
 
@@ -2212,22 +2213,22 @@ const deleteCoupon = asyncHandler(async (req, res) => {
 
 
 const getAdminProfile = asyncHandler(async (req, res) => {
-    const user = await User.findById(req.user.id).select('name email upiId profilePicture');
+  const user = await User.findById(req.user.id).select('name email upiId profilePicture');
 
-    if (!user) {
-        return res.status(404).json({ success: false, message: 'Admin not found.' });
-    }
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'Admin not found.' });
+  }
 
-    res.status(200).json({
-        success: true,
-        data: {
-            name: user.name,
-            email: user.email,
-            upiId: user.upiId || null,
+  res.status(200).json({
+    success: true,
+    data: {
+      name: user.name,
+      email: user.email,
+      upiId: user.upiId || null,
 
-            profilePicture: user.profilePicture || null,
-        },
-    });
+      profilePicture: user.profilePicture || null,
+    },
+  });
 });
 
 const updateAdminProfile = asyncHandler(async (req, res) => {
@@ -2566,204 +2567,204 @@ const updateNotificationSettings = asyncHandler(async (req, res) => {
 
 
 const getCustomerSupportDetails = asyncHandler(async (req, res) => {
-    // Find the single settings document, creating it if it doesn't exist (upsert)
-    const settings = await CustomerSupport.findOneAndUpdate(
-        { appId: 'customer_support_settings' },
-        {},
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+  // Find the single settings document, creating it if it doesn't exist (upsert)
+  const settings = await CustomerSupport.findOneAndUpdate(
+    { appId: 'customer_support_settings' },
+    {},
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
 
-    res.status(200).json({ success: true, data: settings });
+  res.status(200).json({ success: true, data: settings });
 });
 
 const updateCustomerSupportDetails = asyncHandler(async (req, res) => {
-    const updates = req.body;
+  const updates = req.body;
 
-    const settings = await CustomerSupport.findOneAndUpdate(
-        { appId: 'customer_support_settings' },
-        { $set: updates },
-        { new: true, runValidators: true }
-    );
+  const settings = await CustomerSupport.findOneAndUpdate(
+    { appId: 'customer_support_settings' },
+    { $set: updates },
+    { new: true, runValidators: true }
+  );
 
-    if (!settings) {
-        // Should not happen due to upsert in GET, but safety check added
-        return res.status(404).json({ success: false, message: 'Settings document not found.' });
-    }
+  if (!settings) {
+    // Should not happen due to upsert in GET, but safety check added
+    return res.status(404).json({ success: false, message: 'Settings document not found.' });
+  }
 
-    res.status(200).json({
-        success: true,
-        message: 'Customer support details updated.',
-        data: settings
-    });
+  res.status(200).json({
+    success: true,
+    message: 'Customer support details updated.',
+    data: settings
+  });
 });
 
 
 
 const getStaticPageContent = asyncHandler(async (req, res) => {
-    const { pageName } = req.params;
+  const { pageName } = req.params;
 
-    const page = await StaticPage.findOne({ pageName: pageName.toLowerCase() });
+  const page = await StaticPage.findOne({ pageName: pageName.toLowerCase() });
 
-    if (!page) {
-        // Return a 404 error if the page has not been created yet
-        return res.status(404).json({
-            success: false,
-            message: 'Page not found.'
-        });
-    }
-
-    res.status(200).json({
-        success: true,
-        data: {
-            pageName: page.pageName,
-            content: page.content
-        }
+  if (!page) {
+    // Return a 404 error if the page has not been created yet
+    return res.status(404).json({
+      success: false,
+      message: 'Page not found.'
     });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      pageName: page.pageName,
+      content: page.content
+    }
+  });
 });
 
 
 const updateStaticPageContent = asyncHandler(async (req, res) => {
-    const { pageName } = req.params;
-    const { content } = req.body;
+  const { pageName } = req.params;
+  const { content } = req.body;
 
-    if (!content) {
-        return res.status(400).json({ success: false, message: 'Content field is required.' });
-    }
+  if (!content) {
+    return res.status(400).json({ success: false, message: 'Content field is required.' });
+  }
 
-    // Find and update the page content, creating it if it doesn't exist (upsert)
-    const page = await StaticPage.findOneAndUpdate(
-        { pageName: pageName.toLowerCase() },
-        { content: content },
-        { new: true, upsert: true, runValidators: true }
-    );
+  // Find and update the page content, creating it if it doesn't exist (upsert)
+  const page = await StaticPage.findOneAndUpdate(
+    { pageName: pageName.toLowerCase() },
+    { content: content },
+    { new: true, upsert: true, runValidators: true }
+  );
 
-    res.status(200).json({
-        success: true,
-        message: `${pageName} content updated successfully.`,
-        data: page
-    });
+  res.status(200).json({
+    success: true,
+    message: `${pageName} content updated successfully.`,
+    data: page
+  });
 });
 
 
 const updatePageContent = asyncHandler(async (req, res) => {
-    const { content } = req.body;
-    try {
-        const page = await StaticPage.findOneAndUpdate(
-            { pageName: req.params.pageName },
-            { content, lastUpdatedBy: req.user._id },
-            { new: true, upsert: true } // upsert creates the document if it doesn't exist
-        );
+  const { content } = req.body;
+  try {
+    const page = await StaticPage.findOneAndUpdate(
+      { pageName: req.params.pageName },
+      { content, lastUpdatedBy: req.user._id },
+      { new: true, upsert: true } // upsert creates the document if it doesn't exist
+    );
 
-        res.status(200).json({
-            success: true,
-            message: `${req.params.pageName} updated successfully.`,
-            page
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Server error.', error: error.message });
-    }
+    res.status(200).json({
+      success: true,
+      message: `${req.params.pageName} updated successfully.`,
+      page
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error.', error: error.message });
+  }
 });
 
 
 const postPageContent = asyncHandler(async (req, res) => {
-    const { pageName, content } = req.body;
-    try {
-        const existingPage = await StaticPage.findOne({ pageName });
-        if (existingPage) {
-            return res.status(400).json({ success: false, message: 'A page with this name already exists. Use PUT to update.' });
-        }
-
-        const newPage = new StaticPage({
-            pageName,
-            content,
-            lastUpdatedBy: req.user._id
-        });
-
-        const createdPage = await newPage.save();
-
-        res.status(201).json({
-            success: true,
-            message: `${pageName} created successfully.`,
-            page: createdPage
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Server error.', error: error.message });
+  const { pageName, content } = req.body;
+  try {
+    const existingPage = await StaticPage.findOne({ pageName });
+    if (existingPage) {
+      return res.status(400).json({ success: false, message: 'A page with this name already exists. Use PUT to update.' });
     }
+
+    const newPage = new StaticPage({
+      pageName,
+      content,
+      lastUpdatedBy: req.user._id
+    });
+
+    const createdPage = await newPage.save();
+
+    res.status(201).json({
+      success: true,
+      message: `${pageName} created successfully.`,
+      page: createdPage
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error.', error: error.message });
+  }
 });
 
 
 const reportIssue = asyncHandler(async (req, res) => {
-    const { title, issueDescription } = req.body;
-    const reportedBy = req.user._id;
+  const { title, issueDescription } = req.body;
+  const reportedBy = req.user._id;
 
-    if (!title || !issueDescription) {
-        return res.status(400).json({ success: false, message: 'Title and issue description are required.' });
+  if (!title || !issueDescription) {
+    return res.status(400).json({ success: false, message: 'Title and issue description are required.' });
+  }
+
+  try {
+    // Upload photos to Cloudinary if they exist
+    const photos = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const result = await cloudinary.uploader.upload(file.path);
+        photos.push(result.secure_url);
+      }
     }
 
-    try {
-        // Upload photos to Cloudinary if they exist
-        const photos = [];
-        if (req.files && req.files.length > 0) {
-            for (const file of req.files) {
-                const result = await cloudinary.uploader.upload(file.path);
-                photos.push(result.secure_url);
-            }
-        }
+    const newIssue = new Issue({
+      title,
+      issueDescription,
+      photos,
+      reportedBy,
+    });
 
-        const newIssue = new Issue({
-            title,
-            issueDescription,
-            photos,
-            reportedBy,
-        });
+    const createdIssue = await newIssue.save();
 
-        const createdIssue = await newIssue.save();
-
-        res.status(201).json({
-            success: true,
-            message: 'Issue reported successfully.',
-            issue: createdIssue
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Server error.', error: error.message });
-    }
+    res.status(201).json({
+      success: true,
+      message: 'Issue reported successfully.',
+      issue: createdIssue
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error.', error: error.message });
+  }
 });
 
 
 const getuserNotificationSettings = asyncHandler(async (req, res) => {
-    // Find the single settings document. Create it with defaults if it doesn't exist.
-    const settings = await NotificationSettings.findOneAndUpdate(
-        { appId: 'app_settings' },
-        {}, // No update needed, just find
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+  // Find the single settings document. Create it with defaults if it doesn't exist.
+  const settings = await NotificationSettings.findOneAndUpdate(
+    { appId: 'app_settings' },
+    {}, // No update needed, just find
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
 
-    res.status(200).json({
-        success: true,
-        data: settings
-    });
+  res.status(200).json({
+    success: true,
+    data: settings
+  });
 });
 
 
 const updateuserNotificationSettings = asyncHandler(async (req, res) => {
-    // The request body should contain the full set of current settings from the frontend
-    const updates = req.body;
+  // The request body should contain the full set of current settings from the frontend
+  const updates = req.body;
 
-    const settings = await NotificationSettings.findOneAndUpdate(
-        { appId: 'app_settings' },
-        { $set: updates },
-        { new: true, runValidators: true }
-    );
+  const settings = await NotificationSettings.findOneAndUpdate(
+    { appId: 'app_settings' },
+    { $set: updates },
+    { new: true, runValidators: true }
+  );
 
-    if (!settings) {
-        return res.status(404).json({ success: false, message: 'Notification settings not found.' });
-    }
+  if (!settings) {
+    return res.status(404).json({ success: false, message: 'Notification settings not found.' });
+  }
 
-    res.status(200).json({
-        success: true,
-        message: 'Notification settings updated successfully.',
-        data: settings
-    });
+  res.status(200).json({
+    success: true,
+    message: 'Notification settings updated successfully.',
+    data: settings
+  });
 });
 
 
@@ -3023,45 +3024,45 @@ const rejectVendor = asyncHandler(async (req, res) => {
 
 
 module.exports = {
-    getDashboardStats,
-    getProducts, approveVendor,
-    getAdminProductDetails,
-    addOrUpdateNutritionalValue,
-    deleteProduct,
-    getVendors,
-    getVendorDetails,
-    updateVendorStatus, rejectVendor,
-    deleteVendor,
-    getBuyers,
-    getBuyerDetails,
-    blockBuyer,
-    deleteBuyer,
-    getOrders,
-    getOrderDetail,
-    deleteOrder,
-    getBanners,
-    createBanner,
-    deleteBanner,
-    getCategories,
-    getCategoryById,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-    getAdminCoupons,
-    createCoupon,
-    updateCoupon,
-    deleteCoupon,
-    getAdminProfile,
-    updateAdminProfile,
-    deleteAdminProfilePicture,
-    changeAdminPassword,
-    getNotificationSettings,
-    updateNotificationSettings,
-    getStaticPageContent,
-    updatePageContent,
-    postPageContent,
-    reportIssue,
-    getRecentActivity,
-    getuserNotificationSettings, getBannersByPlacement,createVariety,updateVariety,deleteVariety,getAllVarieties,getVarietiesByCategory,
-    updateuserNotificationSettings, getCustomerSupportDetails, updateCustomerSupportDetails, updateStaticPageContent
+  getDashboardStats,
+  getProducts, approveVendor,
+  getAdminProductDetails,
+  addOrUpdateNutritionalValue,
+  deleteProduct,
+  getVendors,
+  getVendorDetails,
+  updateVendorStatus, rejectVendor,
+  deleteVendor,
+  getBuyers,
+  getBuyerDetails,
+  blockBuyer,
+  deleteBuyer,
+  getOrders,
+  getOrderDetail,
+  deleteOrder,
+  getBanners,
+  createBanner,
+  deleteBanner,
+  getCategories,
+  getCategoryById,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  getAdminCoupons,
+  createCoupon,
+  updateCoupon,
+  deleteCoupon,
+  getAdminProfile,
+  updateAdminProfile,
+  deleteAdminProfilePicture,
+  changeAdminPassword,
+  getNotificationSettings,
+  updateNotificationSettings,
+  getStaticPageContent,
+  updatePageContent,
+  postPageContent,
+  reportIssue,
+  getRecentActivity,
+  getuserNotificationSettings, getBannersByPlacement, createVariety, updateVariety, deleteVariety, getAllVarieties, getVarietiesByCategory,
+  updateuserNotificationSettings, getCustomerSupportDetails, updateCustomerSupportDetails, updateStaticPageContent
 };
