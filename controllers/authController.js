@@ -704,6 +704,8 @@ exports.verifyAdminPasswordOtp = asyncHandler(async (req, res) => {
 
   // ✅ Mark verified (temporary session)
   user.isVerified = true;
+  user.passwordResetOtp = undefined;
+  user.passwordResetOtpExpires = undefined;
   await user.save();
 
   res.json({
