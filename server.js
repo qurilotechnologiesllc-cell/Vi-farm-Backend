@@ -32,7 +32,7 @@ app.use(
       "https://viafarm-iy5q.vercel.app",
       "https://viafarm-e3tc.vercel.app",
       "https://viafarm-1.onrender.com",
-      "http://localhost:3000",
+      "http://localhost:3001",
       "http://192.168.1.5:8081",
       "exp://192.168.1.5:8081",
       "http://127.0.0.1:5500",  
