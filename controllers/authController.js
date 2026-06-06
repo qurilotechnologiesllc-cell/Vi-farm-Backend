@@ -10,7 +10,7 @@ const { createAndSendNotification } = require('../utils/notificationUtils');
 
 const { sendEmailOtp } = require('../services/emailService');
 
-const generateToken = (user) => jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '15d' });
+const generateToken = (user) => jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET);
 
 
 const hashPassword = async (password) => {
@@ -120,8 +120,8 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
   const token = generateToken(user);
 
   res.status(200).json({
-    status: 'success',
     message: 'Login successful.',
+    status: 'success',
     token
   });
 });
@@ -246,14 +246,9 @@ exports.login = async (req, res) => {
   const { mobileNumber, password } = req.body;
 
   try {
-    console.log("🔐 LOGIN ATTEMPT");
-    console.log("📱 Mobile Number:", mobileNumber);
-    console.log("🔑 Password received:", password ? "YES" : "NO");
 
     // 🔍 Find user
     const user = await User.findOne({ mobileNumber });
-
-    console.log("👤 User found:", user ? "YES" : "NO");
 
     if (!user) {
       console.log("❌ User NOT FOUND in DB");
@@ -267,11 +262,11 @@ exports.login = async (req, res) => {
     console.log("✅ isVerified:", user.isVerified);
     console.log("✅ role:", user.role);
 
-    if (!user.isVerified) {
-      console.log("❌ User is NOT VERIFIED");
+    // Vendor verification check
+    if (user.role === "Vendor" && !user.isApproved) {
       return res.status(400).json({
         status: "error",
-        message: "User not found or not verified.",
+        message: "Vendor is not approved. Please contact admin.",
       });
     }
 
@@ -385,42 +380,77 @@ exports.verifyOtpLogin = asyncHandler(async (req, res) => {
   const { mobileNumber, otp } = req.body;
 
   if (!mobileNumber || !otp) {
-    return res.status(400).json({ status: 'error', message: 'Mobile number and OTP are required.' });
+    return res.status(400).json({
+      status: "error",
+      message: "Mobile number and OTP are required.",
+    });
   }
 
   try {
     // Find user by mobile number
     const user = await User.findOne({ mobileNumber });
 
-    // Check if OTP matches and is not expired
-    if (!user || !user.otp || user.otp !== otp || !user.otpExpiry || user.otpExpiry < Date.now()) {
-      return res.status(400).json({ status: 'error', message: 'Invalid or expired OTP.' });
+    if (!user) {
+      return res.status(404).json({
+        status: "error",
+        message: "User not found.",
+      });
     }
 
-    // Generate JWT token
+    // Validate OTP
+    if (
+      !user.otp ||
+      user.otp !== otp ||
+      !user.otpExpiry ||
+      user.otpExpiry < Date.now()
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid or expired OTP.",
+      });
+    }
+
+    let vendorStatus = "Approved";
+
+    if (user.role === "Vendor") {
+      if (!user.isVerified || !user.isApproved) {
+        vendorStatus = "Pending";
+      }
+    }
+
+    // Generate Token
     const token = generateToken(user);
 
-    // Clear OTP fields after successful login
+    // Clear OTP after successful login
     user.otp = undefined;
     user.otpExpiry = undefined;
     await user.save();
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Login successful.',
+    return res.status(200).json({
+      status: "success",
+      message: "Login successful.",
       data: {
         token,
         user: {
           id: user._id,
           name: user.name,
           role: user.role,
-          mobileNumber: user.mobileNumber
-        }
-      }
+          mobileNumber: user.mobileNumber,
+          isVerified: user.isVerified,
+          isApproved: user.isApproved,
+          vendorStatus, // Approved | Pending
+        },
+      },
     });
 
   } catch (err) {
-    res.status(500).json({ status: 'error', message: 'Server error', error: err.message });
+    console.error("OTP LOGIN ERROR:", err);
+
+    return res.status(500).json({
+      status: "error",
+      message: "Server error",
+      error: err.message,
+    });
   }
 });
 
