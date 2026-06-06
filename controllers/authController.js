@@ -414,7 +414,7 @@ exports.verifyOtpLogin = asyncHandler(async (req, res) => {
 
     if (user.role === "Vendor") {
       if (!user.isVerified || !user.isApproved) {
-        vendorStatus = "Pending";
+        vendorStatus = user.status === "Rejected" ? "Rejected" : "Pending";
       }
     }
 
