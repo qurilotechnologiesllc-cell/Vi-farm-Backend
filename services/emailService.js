@@ -12,7 +12,7 @@ const sendEmailOtp = async (email, otp, name) => {  // ← name add kiya!
 
       sender: {
         email: process.env.BREVO_USER,
-        name: "ViFarm Team",
+        name: "ViaFarm Team",
       },
 
       to: [
