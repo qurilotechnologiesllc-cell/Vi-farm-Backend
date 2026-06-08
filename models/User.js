@@ -83,7 +83,7 @@ const userSchema = new mongoose.Schema(
         default: "Point",
       },
       coordinates: {
-        type: [String], // [lng, lat]
+        type: [Number],
         default: [0, 0],
       },
     },
