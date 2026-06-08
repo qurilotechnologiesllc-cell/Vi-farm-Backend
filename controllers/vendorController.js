@@ -2399,6 +2399,8 @@ const updateLocationDetails = asyncHandler(async (req, res) => {
       state,
       enableDelivery,
       deliveryRadius,
+      latitude,
+      longitude
     } = req.body;
 
     /* ===============================
@@ -2445,6 +2447,15 @@ const updateLocationDetails = asyncHandler(async (req, res) => {
 
     address.deliveryType = deliveryType;
     address.deliveryRadius = radius;
+
+    if (latitude !== undefined && longitude !== undefined) {
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        address.location.coordinates = [lng, lat];
+      }
+    }
 
     /* ===============================
        SAVE (HOOK RUNS HERE 🔥)

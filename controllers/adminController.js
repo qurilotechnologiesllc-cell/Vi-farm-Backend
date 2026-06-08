@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 
 const Product = require('../models/Product');
 const User = require('../models/User');
+const VenderAddress = require('../models/VendorAddress');
 const Order = require('../models/Order');
 const Banner = require('../models/Banner');
 const Coupon = require('../models/Coupon');
@@ -476,7 +477,9 @@ const getVendorDetails = asyncHandler(async (req, res) => {
 
   // Fetch vendor by ID
   const vendor = await User.findById(id)
-    .select('name address mobileNumber profilePicture  status vendorDetails role rejectionReason'); // include rejectionReason
+    .select('name mobileNumber profilePicture  vendorDetails role rejectionReason'); // include rejectionReason
+
+    const address = await VenderAddress.findOne({ vendor: id }).select('-vendor -__v -createdAt -updatedAt');
 
   if (!vendor || vendor.role !== 'Vendor') {
     return res.status(404).json({ success: false, message: 'Vendor not found.' });
@@ -494,9 +497,8 @@ const getVendorDetails = asyncHandler(async (req, res) => {
         _id: vendor._id,
         name: vendor.name,
         mobileNumber: vendor.mobileNumber,
-        status: vendor.status,
         profilePicture: vendor.profilePicture,
-        address: vendor.address,          // Full address object
+        address: address ? `${address.houseNumber}, ${address.locality}, ${address.city}, ${address.district}, ${address.state} - ${address.pinCode}` : '',
         vendorDetails: vendor.vendorDetails,
         // Only include rejectionReason if vendor status is 'Rejected'
         ...(vendor.status === 'Reject' && { rejectionReason: vendor.rejectionReason || 'Not specified' }),
