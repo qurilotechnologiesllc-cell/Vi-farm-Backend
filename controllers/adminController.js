@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const VenderAddress = require('../models/VendorAddress');
+const BuyerAddress = require('../models/Address');
 const Order = require('../models/Order');
 const Banner = require('../models/Banner');
 const Coupon = require('../models/Coupon');
@@ -422,12 +423,6 @@ const deleteProduct = asyncHandler(async (req, res) => {
 });
 
 
-
-
-
-
-
-
 // @desc    Get all vendors for admin view
 // @route   GET /api/admin/vendors
 // @access  Private/Admin
@@ -446,10 +441,13 @@ const getVendors = asyncHandler(async (req, res) => {
     query.status = status;
   }
 
+
   // ✅ Fetch all vendors (no pagination)
   const vendors = await User.find(query)
-    .select('name address mobileNumber status profilePicture')
+    .select('name mobileNumber status profilePicture')
     .sort({ createdAt: -1 });
+
+  const locations = await VenderAddress.find({ vendor: { $in: vendors.map(v => v._id) } })
 
   res.status(200).json({
     success: true,
@@ -460,26 +458,21 @@ const getVendors = asyncHandler(async (req, res) => {
       mobileNumber: vendor.mobileNumber,
       status: vendor.status,
       profilePicture: vendor.profilePicture,
-      address: vendor.address // Include full address object
+      address: locations.find(l => l.vendor.toString() === vendor._id.toString()) ? // Include full address object
+        `${locations.find(l => l.vendor.toString() === vendor._id.toString()).district}, - ${locations.find(l => l.vendor.toString() === vendor._id.toString()).pinCode}` : ''
     }))
   });
 });
 
 
-
-
-// @desc    Get details for a single vendor
-// @route   GET /api/admin/vendor/:id
-// @access  Private/Admin
-// controllers/adminController.js
 const getVendorDetails = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   // Fetch vendor by ID
   const vendor = await User.findById(id)
-    .select('name mobileNumber profilePicture  vendorDetails role rejectionReason'); // include rejectionReason
+    .select('name mobileNumber profilePicture status vendorDetails role rejectionReason'); // include rejectionReason
 
-    const address = await VenderAddress.findOne({ vendor: id }).select('-vendor -__v -createdAt -updatedAt');
+  const address = await VenderAddress.findOne({ vendor: id }).select('-vendor -__v -createdAt -updatedAt');
 
   if (!vendor || vendor.role !== 'Vendor') {
     return res.status(404).json({ success: false, message: 'Vendor not found.' });
@@ -497,6 +490,7 @@ const getVendorDetails = asyncHandler(async (req, res) => {
         _id: vendor._id,
         name: vendor.name,
         mobileNumber: vendor.mobileNumber,
+        status: vendor.status,
         profilePicture: vendor.profilePicture,
         address: address ? `${address.houseNumber}, ${address.locality}, ${address.city}, ${address.district}, ${address.state} - ${address.pinCode}` : '',
         vendorDetails: vendor.vendorDetails,
@@ -623,8 +617,6 @@ const updateVendorStatus = asyncHandler(async (req, res) => {
 
 
 
-
-
 const deleteVendor = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -736,14 +728,12 @@ const deleteVendor = asyncHandler(async (req, res) => {
 });
 
 
-
-
 const getBuyerDetails = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   // 1. Find buyer
   const buyer = await User.findById(id).select(
-    "name address mobileNumber profilePicture role"
+    "name mobileNumber profilePicture role"
   );
 
   if (!buyer || buyer.role !== "Buyer") {
@@ -768,13 +758,15 @@ const getBuyerDetails = asyncHandler(async (req, res) => {
     })
     .sort({ createdAt: -1 });
 
+    const address = await BuyerAddress.findOne({ user: id }).select('-user -__v -createdAt -updatedAt');
+
   // 4. Response
   res.status(200).json({
     success: true,
     data: {
       buyer: {
         name: buyer.name,
-        location: buyer.address,
+        location: `${address.houseNumber}, ${address.locality}, ${address.city}, ${address.district}, ${address.state} - ${address.pinCode}`,
         contactNo: buyer.mobileNumber,
         profilePicture: buyer.profilePicture,
         totalOrders,
@@ -987,7 +979,6 @@ const deleteBuyer = asyncHandler(async (req, res) => {
     message: "Buyer deleted, Cloudinary cleaned, data removed, notification sent.",
   });
 });
-
 
 
 const getOrders = asyncHandler(async (req, res) => {
@@ -1251,7 +1242,6 @@ const deleteOrder = asyncHandler(async (req, res) => {
     message: "Order deleted, Cloudinary cleaned, notifications sent.",
   });
 });
-
 
 
 const getBanners = asyncHandler(async (req, res) => {
@@ -1982,24 +1972,6 @@ const getAdminCoupons = asyncHandler(async (req, res) => {
 
 
 
-
-
-
-
-
-// EXPORT
-module.exports = {
-  createCoupon,
-  getAdminCoupons,
-};
-
-
-
-
-
-
-
-
 const updateCoupon = asyncHandler(async (req, res) => {
   const { id } = req.params;
   let updates = { ...req.body };
@@ -2110,10 +2082,6 @@ const updateCoupon = asyncHandler(async (req, res) => {
     },
   });
 });
-
-
-
-
 
 
 const deleteCoupon = asyncHandler(async (req, res) => {
