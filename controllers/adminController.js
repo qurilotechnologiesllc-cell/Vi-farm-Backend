@@ -192,8 +192,12 @@ const getAdminProductDetails = asyncHandler(async (req, res) => {
   }
 
   const product = await Product.findById(id)
-    .populate("vendor", "name profilePicture address")
-    .populate("category", "name");   // ✅ category name only
+    .populate("vendor", "name profilePicture") // ✅ vendor name + profile picture only
+    .populate("category", "name -_id");   // ✅ category name only
+
+
+  const address = await VenderAddress.findOne({ vendor: product.vendor._id }).select('-vendor -__v -createdAt -updatedAt');
+    
 
   if (!product) {
     return res.status(404).json({
@@ -205,6 +209,7 @@ const getAdminProductDetails = asyncHandler(async (req, res) => {
   // 🎯 Convert category object → only name
   const formattedProduct = {
     ...product.toObject(),
+    address: `${address.houseNumber}, ${address.locality}, ${address.city}, ${address.district}, ${address.state} - ${address.pinCode}`,
     category: product.category?.name || null  // ✅ only name
   };
 

@@ -468,10 +468,10 @@ const getVendorProducts = asyncHandler(async (req, res) => {
         createdAt: r.createdAt,
         user: r.user
           ? {
-              _id: r.user._id,
-              name: r.user.name,
-              profilePicture: r.user.profilePicture || null,
-            }
+            _id: r.user._id,
+            name: r.user.name,
+            profilePicture: r.user.profilePicture || null,
+          }
           : null,
       })) || [];
 
@@ -872,10 +872,10 @@ const getProductById = asyncHandler(async (req, res) => {
     createdAt: r.createdAt,
     user: r.user
       ? {
-          _id: r.user._id,
-          name: r.user.name,
-          profilePicture: r.user.profilePicture || null,
-        }
+        _id: r.user._id,
+        name: r.user.name,
+        profilePicture: r.user.profilePicture || null,
+      }
       : null,
   }));
 
@@ -896,16 +896,16 @@ const getProductById = asyncHandler(async (req, res) => {
 
     vendor: product.vendor
       ? {
-          name: product.vendor.name,
-          about: product.vendor.vendorDetails?.about || "",
-          mobileNumber: product.vendor.mobileNumber,
-          email: product.vendor.email || "",
-          address:
-            product.vendor.address ||
-            product.vendor.vendorDetails?.address ||
-            null,
-          profilePicture: product.vendor.profilePicture || "",
-        }
+        name: product.vendor.name,
+        about: product.vendor.vendorDetails?.about || "",
+        mobileNumber: product.vendor.mobileNumber,
+        email: product.vendor.email || "",
+        address:
+          product.vendor.address ||
+          product.vendor.vendorDetails?.address ||
+          null,
+        profilePicture: product.vendor.profilePicture || "",
+      }
       : null,
 
     reviews: formattedReviews, // ⭐ Added
@@ -1476,9 +1476,9 @@ const createCoupon = asyncHandler(async (req, res) => {
     // category names
     appliesTo: Array.isArray(newCoupon.appliesTo)
       ? newCoupon.appliesTo.map((cat) => ({
-          id: cat?._id,
-          name: cat?.name,
-        }))
+        id: cat?._id,
+        name: cat?.name,
+      }))
       : [],
 
     // products
@@ -2251,142 +2251,6 @@ const changePassword = asyncHandler(async (req, res) => {
   });
 });
 
-// const updateLocationDetails = asyncHandler(async (req, res) => {
-//   try {
-//     let {
-//       pinCode,
-//       houseNumber,
-//       locality,
-//       city,
-//       district,
-//       state,
-//       latitude,
-//       longitude,
-//       deliveryRegion,
-//     } = req.body;
-
-//     // 🔥 Build full address string (for geocoding & display)
-//     const fullAddressString = [
-//       houseNumber,
-//       locality,
-//       city,
-//       district,
-//       state,
-//       pinCode,
-//     ]
-//       .filter(Boolean)
-//       .join(", ");
-
-//     /* ===============================
-//        1️⃣ DELIVERY REGION
-//     =============================== */
-//     const userUpdate = {};
-//     if (deliveryRegion !== undefined) {
-//       const region = parseFloat(deliveryRegion);
-//       if (isNaN(region) || region <= 0) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "Delivery region must be a positive number.",
-//         });
-//       }
-//       userUpdate["vendorDetails.deliveryRegion"] = region;
-//     }
-//     // 🔥 SAVE FULL ADDRESS STRING IN USER (IMPORTANT)
-//     if (fullAddressString) {
-//       userUpdate["vendorDetails.location"] = fullAddressString;
-//     }
-
-//     /* ===============================
-//        2️⃣ ADDRESS UPSERT
-//     =============================== */
-//     let addressUpdate = {};
-//     let locationPoint = null;
-
-//     if (latitude && longitude) {
-//       const lat = parseFloat(latitude);
-//       const lng = parseFloat(longitude);
-
-//       if (isNaN(lat) || isNaN(lng)) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "Invalid latitude or longitude values.",
-//         });
-//       }
-
-//       locationPoint = { type: "Point", coordinates: [lng, lat] };
-//     }
-
-//     if (pinCode) addressUpdate.pinCode = pinCode;
-//     if (houseNumber) addressUpdate.houseNumber = houseNumber;
-//     if (locality) addressUpdate.locality = locality;
-//     if (city) addressUpdate.city = city;
-//     if (district) addressUpdate.district = district;
-//     if (locationPoint) addressUpdate.location = locationPoint;
-//     if (state) addressUpdate.state = state;
-
-//     if (
-//       Object.keys(userUpdate).length === 0 &&
-//       Object.keys(addressUpdate).length === 0
-//     ) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "No fields provided for update.",
-//       });
-//     }
-
-//     /* ===============================
-//        3️⃣ UPDATE / CREATE ADDRESS
-//     =============================== */
-//     let address = await Address.findOne({
-//       user: req.user._id,
-//       isDefault: true,
-//     });
-
-//     if (!address) {
-//       address = await Address.create({
-//         user: req.user._id,
-//         isDefault: true,
-//         ...addressUpdate,
-//       });
-//     } else if (Object.keys(addressUpdate).length) {
-//       Object.assign(address, addressUpdate);
-//       await address.save();
-//     }
-
-//     /* ===============================
-//        4️⃣ UPDATE USER (LOCATION + REGION)
-//     =============================== */
-//     if (locationPoint) userUpdate.location = locationPoint;
-
-//     const updatedUser = await User.findByIdAndUpdate(
-//       req.user._id,
-//       { $set: userUpdate },
-//       { new: true },
-//     );
-
-//     /* ===============================
-//        5️⃣ RESPONSE (UNCHANGED)
-//     =============================== */
-//     res.status(200).json({
-//       success: true,
-//       message: "Location and delivery details updated successfully.",
-//       data: {
-//         address: address || null,
-//         location: updatedUser.location || null,
-//         deliveryRegion: updatedUser.vendorDetails?.deliveryRegion
-//           ? `${updatedUser.vendorDetails.deliveryRegion} km`
-//           : null,
-//       },
-//     });
-//   } catch (error) {
-//     console.error('❌ Error updating vendor location:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Server error while updating location details.',
-//       error: error.message
-//     });
-//   }
-// });
 
 const updateLocationDetails = asyncHandler(async (req, res) => {
   try {
