@@ -1094,16 +1094,52 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     });
   }
 
+  if (
+    order.orderStatus === "Completed" ||
+    order.orderStatus === "Cancelled"
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: `Order is already ${order.orderStatus}.`,
+    });
+  }
+
+  const alreadyTracked = order.orderTracking.some(
+    (track) => track.status === status
+  );
+
+  if (alreadyTracked) {
+    return res.status(400).json({
+      success: false,
+      message: `Status "${status}" already exists in tracking history.`,
+    });
+  }
+
+  const statusFlow = [
+    "In-process",
+    "Confirmed",
+    "Out For Delivery",
+    "Ready For Pickup",
+    "Completed",
+    "Cancelled",
+  ];
+
   const currentIndex = statusFlow.indexOf(order.orderStatus);
   const newIndex = statusFlow.indexOf(status);
 
-  // Cannot move backwards
   if (newIndex < currentIndex) {
     return res.status(400).json({
       success: false,
-      message: `Order cannot move back from "${order.orderStatus}" to "${status}".`,
+      message: `Order cannot move backward from "${order.orderStatus}" to "${status}".`,
     });
   }
+
+  order.orderTracking.push({
+    status,
+    timestamp: new Date(),
+  });
+
+
 
   // Update Order Status
   order.orderStatus = status;
