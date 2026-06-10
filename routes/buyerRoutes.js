@@ -63,6 +63,7 @@ const {
   donateToAdmin,
   searchProductsByName,
   getAddresses,
+  getBuyerlocation,
   setDefaultAddress,
   getHomePageData,
   getProductDetails,
@@ -169,6 +170,7 @@ router.get('/with-products', getCategoriesWithProducts);
 
 // --- Address & Pickup ---
 router.get('/addresses', getAddresses);
+router.get('/location', getBuyerlocation); // ✅ New route to get only buyer's addresses
 router.post('/addresses', addAddress);
 router.put('/addresses/:id', updateAddress);  // Update address by ID (supports 'profile' or normal address)
 router.delete('/addresses/:id',  deleteAddress); // ✅ DELETE route

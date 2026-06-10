@@ -19,6 +19,7 @@ const AddressSchema = new mongoose.Schema(
     city: { type: String, trim: true },
     district: { type: String, trim: true },
     state: { type: String, trim: true, default: "Delhi" },
+    country: { type: String, trim: true, default: "India" },
 
     isDefault: { type: Boolean, default: false },
 

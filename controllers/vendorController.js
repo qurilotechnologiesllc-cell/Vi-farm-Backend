@@ -1094,6 +1094,13 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     });
   }
 
+  if (order.orderStatus === 'Confirmed' && order.orderStatus === 'Cancelled' && order.orderStatus === 'Ready For Pickup' && order.orderStatus === 'Completed' && order.orderStatus === 'In-process') {
+    return res.status(400).json({
+      success: false,
+      message: "Order status cannot be changed from its current state.",
+    });
+  }
+
   // Update Order Status
   order.orderStatus = status;
   const updatedOrder = await order.save();
@@ -2261,6 +2268,7 @@ const updateLocationDetails = asyncHandler(async (req, res) => {
       city,
       district,
       state,
+      country,
       enableDelivery,
       deliveryRadius,
       latitude,
@@ -2308,6 +2316,7 @@ const updateLocationDetails = asyncHandler(async (req, res) => {
     if (city !== undefined) address.city = city;
     if (district !== undefined) address.district = district;
     if (state !== undefined) address.state = state;
+    if (country !== undefined) address.country = country;
 
     address.deliveryType = deliveryType;
     address.deliveryRadius = radius;
@@ -2339,6 +2348,12 @@ const updateLocationDetails = asyncHandler(async (req, res) => {
       });
     }
 
+    const responseLatitude =
+      address.location?.coordinates?.[1] ?? null;
+
+    const responseLongitude =
+      address.location?.coordinates?.[0] ?? null;
+
     /* ===============================
        RESPONSE
     =============================== */
@@ -2346,13 +2361,39 @@ const updateLocationDetails = asyncHandler(async (req, res) => {
       success: true,
       message: "Vendor location updated successfully",
       data: {
-        address,
-        location: address.location,
+        address: {
+          _id: address._id,
+          vendor: address.vendor,
+
+          houseNumber: address.houseNumber || "",
+          locality: address.locality || "",
+          city: address.city || "",
+          district: address.district || "",
+          state: address.state || "",
+          country: address.country || "",
+          pinCode: address.pinCode || "",
+
+          fullAddress: address.fullAddress || "",
+
+          deliveryType: address.deliveryType,
+          deliveryRadius: address.deliveryRadius,
+
+          location: {
+            type: address.location?.type || "Point",
+            coordinates: address.location?.coordinates || [],
+          },
+        },
+
+        location: {
+          type: address.location?.type || "Point",
+          coordinates: address.location?.coordinates || [],
+        },
+
+        latitude: responseLatitude,
+        longitude: responseLongitude,
+
         deliveryType: address.deliveryType,
-        deliveryRadius:
-          address.deliveryType !== "Pickup"
-            ? `${address.deliveryRadius} km`
-            : null,
+        deliveryRadius: address.deliveryRadius,
       },
     });
   } catch (error) {
@@ -2367,7 +2408,7 @@ const updateLocationDetails = asyncHandler(async (req, res) => {
 const getLocationDetails = asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select(
-      "location vendorDetails role",
+      "location vendorDetails role"
     );
 
     if (!user || user.role !== "Vendor") {
@@ -2377,23 +2418,73 @@ const getLocationDetails = asyncHandler(async (req, res) => {
       });
     }
 
-    const address =
-      (await Address.findOne({ user: req.user._id, isDefault: true }).lean()) ||
-      (await Address.findOne({ user: req.user._id })
-        .sort({ createdAt: -1 })
-        .lean());
+    const address = await VendorAddress.findOne({
+      vendor: req.user._id,
+    }).lean();
 
-    res.status(200).json({
+    if (!address) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor address not found.",
+      });
+    }
+
+    const fullAddress = [
+      address.houseNumber,
+      address.locality,
+      address.city,
+      address.district,
+      address.state,
+      address.country,
+      address.pinCode,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    return res.status(200).json({
       success: true,
+      message: "Vendor location fetched successfully",
       data: {
-        address: address || null,
-        location: user.location || null,
-        deliveryRegion: user.vendorDetails?.deliveryRegion ?? null,
+        address: {
+          _id: address._id,
+          vendor: address.vendor,
+          houseNumber: address.houseNumber || "",
+          locality: address.locality || "",
+          city: address.city || "",
+          district: address.district || "",
+          state: address.state || "",
+          country: address.country || "",
+          pinCode: address.pinCode || "",
+          fullAddress,
+          deliveryType: address.deliveryType || "",
+          deliveryRadius: address.deliveryRadius || 0,
+          location: {
+            type: address.location?.type || "Point",
+            coordinates: address.location?.coordinates || [],
+          },
+        },
+
+        location: {
+          type: address.location?.type || "Point",
+          coordinates: address.location?.coordinates || [],
+        },
+
+        latitude: Array.isArray(address.location?.coordinates)
+          ? address.location.coordinates[1]
+          : null,
+
+        longitude: Array.isArray(address.location?.coordinates)
+          ? address.location.coordinates[0]
+          : null,
+
+        deliveryType: address.deliveryType || "",
+        deliveryRadius: address.deliveryRadius || 0,
       },
     });
   } catch (error) {
     console.error("❌ Error fetching location details:", error);
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
       message: "Server error while fetching location details.",
       error: error.message,

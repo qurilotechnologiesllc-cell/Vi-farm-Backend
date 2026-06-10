@@ -2186,7 +2186,7 @@ const getVendorsNearYou = asyncHandler(async (req, res) => {
             role: "Vendor",
             status: "Active",
             location: { $ne: null },
-            _id: { $in: validVendorIds }, 
+            _id: { $in: validVendorIds },
           },
         },
       },
@@ -2372,141 +2372,6 @@ const getVendorsNearYou = asyncHandler(async (req, res) => {
   }
 });
 
-// const getAllVendors = asyncHandler(async (req, res) => {
-//   const { q, category } = req.query;
-//   const userId = req.user._id;
-
-//   try {
-//     /* ==============================
-//        1️⃣ BUYER LOCATION
-//     ============================== */
-//     const buyer = await User.findById(userId).select("location").lean();
-
-//     const buyerCoords = buyer?.location?.coordinates || null; // [lng, lat]
-
-//     /* ==============================
-//        2️⃣ BASE QUERY
-//     ============================== */
-//     let query = {
-//       role: "Vendor",
-//       status: "Active",
-//     };
-
-//     if (q) {
-//       query.name = { $regex: q, $options: "i" };
-//     }
-
-//     if (category) {
-//       const vendorIds = await Product.distinct("vendor", {
-//         category: { $regex: category, $options: "i" },
-//       });
-//       query._id = { $in: vendorIds };
-//     }
-
-//     /* ==============================
-//        3️⃣ FETCH VENDORS
-//     ============================== */
-//     const vendors = await User.find(query)
-//       .select("name profilePicture location vendorDetails farmImages address")
-//       .lean();
-
-//     const vendorIds = vendors.map((v) => v._id);
-
-//     /* ==============================
-//        4️⃣ FETCH CATEGORIES (ONCE)
-//     ============================== */
-//     const products = await Product.find({
-//       vendor: { $in: vendorIds },
-//       status: "In Stock",
-//     })
-//       .populate("category", "name")
-//       .select("vendor category")
-//       .lean();
-
-//     // vendorId -> Set(categories)
-//     const vendorCategoryMap = {};
-
-//     for (const p of products) {
-//       const vId = p.vendor.toString();
-//       if (!vendorCategoryMap[vId]) {
-//         vendorCategoryMap[vId] = new Set();
-//       }
-//       if (p.category?.name) {
-//         vendorCategoryMap[vId].add(p.category.name);
-//       }
-//     }
-
-//     /* ==============================
-//        5️⃣ BUILD RESPONSE
-//     ============================== */
-//     const enrichedVendors = vendors.map((vendor) => {
-//       const vendorCoords = vendor?.location?.coordinates || null;
-
-//       // ✅ distance text
-//       const distanceText = getDistanceText(buyerCoords, vendorCoords);
-
-//       // ✅ raw distance (sorting)
-//       let distanceValue = 9999;
-//       if (
-//         Array.isArray(buyerCoords) &&
-//         Array.isArray(vendorCoords) &&
-//         buyerCoords.length === 2 &&
-//         vendorCoords.length === 2 &&
-//         !buyerCoords.includes(0) &&
-//         !vendorCoords.includes(0)
-//       ) {
-//         distanceValue = calculateDistanceKm(
-//           buyerCoords[1],
-//           buyerCoords[0],
-//           vendorCoords[1],
-//           vendorCoords[0],
-//         );
-//       }
-
-//       return {
-//         id: vendor._id.toString(),
-//         name: vendor.name,
-//         profilePicture:
-//           vendor.profilePicture || "https://default-image-url.com/default.png",
-//         farmImages: vendor.farmImages || [],
-//         locationText:
-//           vendor.address?.locality ||
-//           vendor.address?.city ||
-//           "Unknown Location",
-
-//         // ✅ DISTANCE
-//         distance: distanceText,
-//         distanceValue: Number(distanceValue.toFixed(2)),
-
-//         // ✅ FIXED: REAL CATEGORIES
-//         categories: vendorCategoryMap[vendor._id.toString()]
-//           ? Array.from(vendorCategoryMap[vendor._id.toString()])
-//           : ["No categories listed"],
-//       };
-//     });
-
-//     /* ==============================
-//        6️⃣ SORT
-//     ============================== */
-//     enrichedVendors.sort((a, b) => a.distanceValue - b.distanceValue);
-
-//     /* ==============================
-//        7️⃣ RESPONSE
-//     ============================== */
-//     return res.status(200).json({
-//       success: true,
-//       count: enrichedVendors.length,
-//       vendors: enrichedVendors,
-//     });
-//   } catch (err) {
-//     console.error("❌ Error fetching vendors:", err);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch vendors.",
-//       error: err.message,
-//     });
-//   }
-// });
 
 const getAllVendors = asyncHandler(async (req, res) => {
   const { q, category } = req.query;
@@ -6227,120 +6092,181 @@ const updateBuyerProfile = asyncHandler(async (req, res) => {
 });
 
 const updateBuyerLocation = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
+  try {
+    const id = req.user._id;
 
-  let {
-    addressId,
-    pinCode,
-    houseNumber,
-    street,
-    locality,
-    city,
-    district,
-    state,
-    latitude,
-    longitude,
-  } = req.body;
+    let {
+      pinCode,
+      houseNumber,
+      street,
+      locality,
+      city,
+      district,
+      country,
+      state,
+      isDefault,
+      latitude,
+      longitude,
+    } = req.body;
 
-  /** ✅ 1️⃣ Auto-pick address if addressId not provided */
-  if (!addressId) {
-    let address = await Address.findOne({ user: userId, isDefault: true });
-
-    if (!address) {
-      address = await Address.findOne({ user: userId }).sort({ createdAt: -1 });
-    }
-
-    if (!address) {
+    // 1️⃣ Validate ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
-        message: "No address found. Please add address first.",
+        message: "Invalid address ID.",
       });
     }
 
-    addressId = address._id;
-  }
-
-  const update = {};
-
-  /** ✅ 2️⃣ Partial address update */
-  if (pinCode) update.pinCode = pinCode;
-  if (houseNumber) update.houseNumber = houseNumber;
-  if (street) update.street = street;
-  if (locality) update.locality = locality;
-  if (city) update.city = city;
-  if (district) update.district = district;
-  if (state) update.state = state;
-
-  /** ✅ 3️⃣ Location update (0 allowed) */
-  if (latitude !== undefined && longitude !== undefined) {
-    const lat = parseFloat(latitude);
-    const lng = parseFloat(longitude);
-
-    if (isNaN(lat) || isNaN(lng)) {
-      return res.status(400).json({
+    // 2️⃣ Find address
+    const address = await Address.findOne({ user: req.user._id });
+    if (!address) {
+      return res.status(404).json({
         success: false,
-        message: "Invalid latitude or longitude",
+        message: "Address not found.",
       });
     }
 
-    update.location = {
-      type: "Point",
-      coordinates: [lng, lat],
-    };
-  }
+    // ✅ Always keep valid GeoJSON
+    if (!address.location) {
+      address.location = { type: "Point", coordinates: [] };
+    }
 
-  /** ❌ Prevent empty update */
-  if (Object.keys(update).length === 0) {
-    return res.status(400).json({
+    // 3️⃣ Coordinates provided → update + reverse geocode
+    if (latitude !== undefined && longitude !== undefined) {
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+
+      if (
+        isNaN(lat) ||
+        isNaN(lng) ||
+        lat < -90 ||
+        lat > 90 ||
+        lng < -180 ||
+        lng > 180
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid latitude or longitude.",
+        });
+      }
+
+      address.location.coordinates = [lng, lat];
+
+      // 🌍 Reverse geocode (fill ONLY missing fields)
+      try {
+        const resp = await axios.get(
+          "https://nominatim.openstreetmap.org/reverse",
+          {
+            params: {
+              lat,
+              lon: lng,
+              format: "json",
+              addressdetails: 1,
+            },
+            headers: { "User-Agent": "ViaFarm-GeoCoder/1.0" },
+            timeout: 8000,
+          },
+        );
+
+        const a = resp.data?.address || {};
+        pinCode ??= a.postcode || "";
+        city ??= a.city || a.town || a.village || "";
+        district ??= a.state_district || a.county || "";
+        state ??= a.state || "";
+        country ??= a.country || "";
+        locality ??= a.suburb || a.road || a.neighbourhood || "";
+      } catch (err) {
+        console.warn("⚠ Reverse geocode failed:", err.message);
+      }
+    }
+
+    // 4️⃣ No coordinates → forward geocode
+    else {
+      const coords = await geocodeAddress({
+        houseNumber,
+        street,
+        locality,
+        city,
+        country,
+        district,
+        state,
+        pinCode,
+      });
+
+      if (coords && coords.length === 2) {
+        address.location.coordinates = coords;
+        console.log("📍 Auto-geocoded:", coords);
+      }
+    }
+
+    // 5️⃣ Default address logic
+    if (isDefault === true) {
+      await Address.updateMany(
+        { user: req.user._id, isDefault: true },
+        { isDefault: false },
+      );
+      address.isDefault = true;
+    } else if (isDefault === false) {
+      address.isDefault = false;
+    }
+
+    // 6️⃣ Partial updates (safe)
+    if (pinCode !== undefined) address.pinCode = pinCode;
+    if (houseNumber !== undefined) address.houseNumber = houseNumber;
+    if (street !== undefined) address.street = street || "";
+    if (locality !== undefined) address.locality = locality || "";
+    if (city !== undefined) address.city = city || "";
+    if (district !== undefined) address.district = district || "";
+    if (state !== undefined) address.state = state || "";
+    if (country !== undefined) address.country = country || "";
+
+    // 7️⃣ Save
+    await address.save();
+
+    // 8️⃣ Format address
+    const formattedAddress = [
+      address.houseNumber,
+      address.locality,
+      address.city,
+      address.district,
+      address.state,
+      address.country,
+      address.pinCode,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    return res.json({
+      success: true,
+      message: "location updated successfully.",
+      data: {
+        id: address._id,
+        formattedAddress,
+        houseNumber: address.houseNumber,
+        locality: address.locality,
+        city: address.city,
+        district: address.district,
+        state: address.state,
+        pinCode: address.pinCode,
+        country: address.country,
+        isDefault: address.isDefault,
+        latitude: Array.isArray(address.location?.coordinates)
+          ? address.location.coordinates[1]
+          : null,
+        longitude: Array.isArray(address.location?.coordinates)
+          ? address.location.coordinates[0]
+          : null,
+        coordinates: address.location.coordinates,
+      },
+    });
+  } catch (error) {
+    console.error("❌ updatelocation error:", error);
+    return res.status(500).json({
       success: false,
-      message: "No fields provided for update",
+      message: "Failed to update address",
+      error: error.message,
     });
   }
-
-  /** ✅ 4️⃣ Update address */
-  const address = await Address.findOneAndUpdate(
-    { _id: addressId, user: userId },
-    { $set: update },
-    { new: true },
-  );
-
-  if (!address) {
-    return res.status(404).json({
-      success: false,
-      message: "Address not found",
-    });
-  }
-
-  /** 🔥 5️⃣ Sync buyer main location (for distance APIs) */
-  if (update.location) {
-    await User.findByIdAndUpdate(userId, {
-      $set: { location: update.location },
-    });
-  }
-
-  /** ✅ 6️⃣ Response */
-  const formattedAddress = [
-    address.houseNumber,
-    address.street,
-    address.locality,
-    address.city,
-    address.district,
-    address.state,
-    address.pinCode,
-  ]
-    .filter(Boolean)
-    .join(", ");
-
-  return res.json({
-    success: true,
-    message: "Address location updated successfully",
-    address: {
-      id: address._id,
-      formattedAddress,
-      isDefault: address.isDefault,
-      coordinates: address.location?.coordinates || [],
-    },
-  });
 });
 
 const updateBuyerLanguage = asyncHandler(async (req, res) => {
@@ -6422,6 +6348,65 @@ const getAddresses = asyncHandler(async (req, res) => {
     success: true,
     message: "All addresses retrieved successfully.",
     addresses: formattedAddresses,
+  });
+});
+
+const getBuyerlocation = asyncHandler(async (req, res) => {
+  // Default address ko priority do
+  const address = await Address.findOne({ user: req.user._id })
+    .sort({ isDefault: -1, createdAt: -1 })
+    .lean();
+
+  if (!address) {
+    return res.status(404).json({
+      success: false,
+      message: "No address found for this buyer.",
+    });
+  }
+
+  const fullAddress = [
+    address.houseNumber,
+    address.street,
+    address.locality,
+    address.city,
+    address.district,
+    address.state,
+    address.country,
+    address.pinCode,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return res.status(200).json({
+    success: true,
+    message: "Buyer location fetched successfully",
+    data: {
+      _id: address._id,
+      houseNumber: address.houseNumber || "",
+      street: address.street || "",
+      locality: address.locality || "",
+      city: address.city || "",
+      district: address.district || "",
+      state: address.state || "",
+      country: address.country || "",
+      pinCode: address.pinCode || "",
+      fullAddress,
+
+      latitude: Array.isArray(address.location?.coordinates)
+        ? address.location.coordinates[1]
+        : null,
+
+      longitude: Array.isArray(address.location?.coordinates)
+        ? address.location.coordinates[0]
+        : null,
+
+      location: {
+        type: "Point",
+        coordinates: Array.isArray(address.location?.coordinates)
+          ? address.location.coordinates
+          : [],
+      },
+    },
   });
 });
 
@@ -6651,6 +6636,7 @@ const updateAddress = asyncHandler(async (req, res) => {
       locality,
       city,
       district,
+      country,
       state,
       isDefault,
       latitude,
@@ -6721,6 +6707,7 @@ const updateAddress = asyncHandler(async (req, res) => {
         city ??= a.city || a.town || a.village || "";
         district ??= a.state_district || a.county || "";
         state ??= a.state || "";
+        country ??= a.country || "";
         locality ??= a.suburb || a.road || a.neighbourhood || "";
       } catch (err) {
         console.warn("⚠ Reverse geocode failed:", err.message);
@@ -6734,6 +6721,7 @@ const updateAddress = asyncHandler(async (req, res) => {
         street,
         locality,
         city,
+        country,
         district,
         state,
         pinCode,
@@ -6764,6 +6752,7 @@ const updateAddress = asyncHandler(async (req, res) => {
     if (city !== undefined) address.city = city || "";
     if (district !== undefined) address.district = district || "";
     if (state !== undefined) address.state = state || "";
+    if (country !== undefined) address.country = country || "";
 
     // 7️⃣ Save
     await address.save();
@@ -6771,11 +6760,11 @@ const updateAddress = asyncHandler(async (req, res) => {
     // 8️⃣ Format address
     const formattedAddress = [
       address.houseNumber,
-      address.street,
       address.locality,
       address.city,
       address.district,
       address.state,
+      address.country,
       address.pinCode,
     ]
       .filter(Boolean)
@@ -6784,20 +6773,24 @@ const updateAddress = asyncHandler(async (req, res) => {
     return res.json({
       success: true,
       message: "Address updated successfully.",
-      address: {
+      data: {
         id: address._id,
         formattedAddress,
+        houseNumber: address.houseNumber,
+        locality: address.locality,
+        city: address.city,
+        district: address.district,
+        state: address.state,
+        pinCode: address.pinCode,
+        country: address.country,
         isDefault: address.isDefault,
+        latitude: Array.isArray(address.location?.coordinates)
+          ? address.location.coordinates[1]
+          : null,
+        longitude: Array.isArray(address.location?.coordinates)
+          ? address.location.coordinates[0]
+          : null,
         coordinates: address.location.coordinates,
-        details: {
-          houseNumber: address.houseNumber,
-          street: address.street,
-          locality: address.locality,
-          city: address.city,
-          district: address.district,
-          state: address.state,
-          pinCode: address.pinCode,
-        },
       },
     });
   } catch (error) {
@@ -6809,6 +6802,7 @@ const updateAddress = asyncHandler(async (req, res) => {
     });
   }
 });
+
 
 const deleteAddress = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -8045,6 +8039,7 @@ module.exports = {
   verifyPayment,
   addAddress,
   getAddresses,
+  getBuyerlocation,
   getStaticPageContent,
   getNearbyVendors,
 };
