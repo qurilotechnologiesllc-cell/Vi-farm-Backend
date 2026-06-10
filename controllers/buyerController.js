@@ -6117,6 +6117,8 @@ const updateBuyerLocation = asyncHandler(async (req, res) => {
       });
     }
 
+    await User.findByIdAndUpdate({_id: req.user._id}, {$set: {location: {type: "Point", coordinates: [longitude, latitude]}}})
+
     // 2️⃣ Find address
     const address = await Address.findOne({ user: req.user._id });
     if (!address) {
