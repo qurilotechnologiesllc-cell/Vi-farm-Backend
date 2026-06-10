@@ -59,12 +59,20 @@ const orderSchema = new mongoose.Schema(
         "In-process",
         "Confirmed",
         "Out For Delivery",
-        "Cancelled",
         "Ready For Pickup",
         "Completed",
+        "Cancelled",
       ],
       default: "In-process",
     },
+
+    orderTracking: [
+      {
+        status: { type: String },
+        timestamp: { type: Date, default: Date.now },
+      },
+    ],
+
     shippingAddress: {
       type: Object, // embedded shipping address object
     },

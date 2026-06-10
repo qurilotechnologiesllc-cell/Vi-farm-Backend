@@ -1094,10 +1094,14 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     });
   }
 
-  if (order.orderStatus === 'Confirmed' || order.orderStatus === 'Cancelled' || order.orderStatus === 'Ready For Pickup' || order.orderStatus === 'Completed' || order.orderStatus === 'In-process') {
+  const currentIndex = statusFlow.indexOf(order.orderStatus);
+  const newIndex = statusFlow.indexOf(status);
+
+  // Cannot move backwards
+  if (newIndex < currentIndex) {
     return res.status(400).json({
       success: false,
-      message: "Order status cannot be changed from its current state.",
+      message: `Order cannot move back from "${order.orderStatus}" to "${status}".`,
     });
   }
 
