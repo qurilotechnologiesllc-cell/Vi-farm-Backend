@@ -4864,182 +4864,99 @@ const getHighlightedCouponByVendor = asyncHandler(async (req, res) => {
   });
 });
 
-/*
-const getHighlightedCoupon = asyncHandler(async (req, res) => {
+const getfiltredCouponToUser = asyncHandler(async (req, res) => {
   try {
     const now = new Date();
     const userId = req.user._id;
 
-    // ⭐ Fetch selected vendor from Cart
+    // =====================================
+    // STEP 1: GET USER CART
+    // =====================================
     const cart = await Cart.findOne({ user: userId }).lean();
-    const selectedVendor = cart?.selectedVendors?.[0] || null;
 
-    // ⭐ Step 1: Get ALL active coupons (Admin + Vendor)
+    if (!cart || !cart.items?.length) {
+      return res.json({
+        success: true,
+        message: "Cart is empty.",
+        data: [],
+      });
+    }
+
+    // =====================================
+    // STEP 2: EXTRACT PRODUCT IDS
+    // =====================================
+    const productIds = cart.items.map(item => item.product);
+
+    // =====================================
+    // STEP 3: FIND ACTIVE COUPONS
+    // =====================================
     let coupons = await Coupon.find({
       status: "Active",
       startDate: { $lte: now },
-      expiryDate: { $gte: now }
+      expiryDate: { $gte: now },
+
+      // IMPORTANT PART
+      applicableProducts: {
+        $in: productIds,
+      },
     })
       .populate("vendor", "name")
       .lean();
 
-    // ⭐ Step 2: Filtering logic
-    const filteredCoupons = coupons.filter(c => {
-      // Admin coupon (vendor null) → always include
-      if (!c.vendor) return true;
+    // =====================================
+    // STEP 4: CONVERT CATEGORY IDS TO NAMES
+    // =====================================
+    for (const coupon of coupons) {
 
-      // Vendor coupon → include ONLY if selected vendor matches
-      return selectedVendor && c.vendor._id.toString() === selectedVendor.toString();
-    });
+      // Categories
+      if (
+        Array.isArray(coupon.appliesTo) &&
+        coupon.appliesTo.length > 0
+      ) {
+        const categories = await Category.find({
+          _id: { $in: coupon.appliesTo },
+        }).select("name");
 
-    // ⭐ Step 3: Convert appliesTo & products to names
-    for (const c of filteredCoupons) {
-
-      // Category Names
-      if (Array.isArray(c.appliesTo) && c.appliesTo.length > 0) {
-        const cats = await Category.find({ _id: { $in: c.appliesTo } })
-          .select("name");
-        c.appliesTo = cats.map(x => x.name);
+        coupon.appliesTo = categories.map(cat => cat.name);
       } else {
-        c.appliesTo = ["All Products"];
+        coupon.appliesTo = ["All Products"];
       }
 
-      // Product Names
-      if (c.applicableProducts?.length > 0) {
-        const prods = await Product.find({
-          _id: { $in: c.applicableProducts }
+      // Products
+      if (
+        Array.isArray(coupon.applicableProducts) &&
+        coupon.applicableProducts.length > 0
+      ) {
+        const products = await Product.find({
+          _id: { $in: coupon.applicableProducts },
         }).select("name");
-        c.applicableProducts = prods.map(p => p.name);
+
+        coupon.applicableProducts = products.map(
+          product => product.name
+        );
       } else {
-        c.applicableProducts = [];
+        coupon.applicableProducts = [];
       }
     }
 
+    // =====================================
+    // STEP 5: RESPONSE
+    // =====================================
     return res.json({
       success: true,
       message: "Eligible coupons retrieved successfully.",
-      data: filteredCoupons
-    });
-
-  } catch (error) {
-    console.error("Coupon Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to load coupons."
-    });
-  }
-});
-
-
-
-
-
-
-const getHighlightedCouponByVendor = asyncHandler(async (req, res) => {
-  try {
-    const now = new Date();
-    const userId = req.user._id;
-    const { vendorId } = req.query;
-
-    let vendorIds = [];
-
-    // ✅ CASE 1: Vendor ID explicitly provided
-    if (vendorId && mongoose.Types.ObjectId.isValid(vendorId)) {
-      vendorIds = [new mongoose.Types.ObjectId(vendorId)];
-    }
-
-    // ✅ CASE 2: Derive vendor from cart
-    else {
-      const cart = await Cart.findOne({ user: userId }).lean();
-
-      if (!cart || !cart.items || cart.items.length === 0) {
-        return res.json({
-          success: true,
-          message: "Cart is empty. No coupons available.",
-          data: [],
-        });
-      }
-
-      vendorIds = [
-        ...new Set(
-          cart.items
-            .filter(
-              (i) => i.vendor && mongoose.Types.ObjectId.isValid(i.vendor),
-            )
-            .map((i) => new mongoose.Types.ObjectId(i.vendor)),
-        ),
-      ];
-    }
-
-    // ✅ Fetch eligible coupons
-    const coupons = await Coupon.find({
-      status: "Active",
-      startDate: { $lte: now },
-      expiryDate: { $gte: now },
-      $or: [
-        { vendor: null }, // Admin coupons
-        { vendor: { $in: vendorIds } }, // Vendor coupons
-      ],
-    }).lean();
-
-    // ✅ SAFELY RESOLVE CATEGORY & PRODUCT NAMES
-    for (const c of coupons) {
-      // -------- CATEGORY SAFE FIX --------
-      if (Array.isArray(c.appliesTo) && c.appliesTo.length > 0) {
-        const validCategoryIds = c.appliesTo.filter((id) =>
-          mongoose.Types.ObjectId.isValid(id),
-        );
-
-        if (validCategoryIds.length > 0) {
-          const cats = await Category.find({
-            _id: { $in: validCategoryIds },
-          }).select("name");
-
-          c.appliesTo = cats.map((x) => x.name);
-        } else {
-          c.appliesTo = ["All Products"];
-        }
-      } else {
-        c.appliesTo = ["All Products"];
-      }
-
-      // -------- PRODUCT SAFE FIX --------
-      if (
-        Array.isArray(c.applicableProducts) &&
-        c.applicableProducts.length > 0
-      ) {
-        const validProductIds = c.applicableProducts.filter((id) =>
-          mongoose.Types.ObjectId.isValid(id),
-        );
-
-        if (validProductIds.length > 0) {
-          const prods = await Product.find({
-            _id: { $in: validProductIds },
-          }).select("name");
-
-          c.applicableProducts = prods.map((p) => p.name);
-        } else {
-          c.applicableProducts = [];
-        }
-      } else {
-        c.applicableProducts = [];
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: "Vendor-based coupons fetched successfully.",
       data: coupons,
     });
+
   } catch (error) {
     console.error("Coupon Error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to load coupons.",
     });
   }
 });
-*/
 
 const getWishlist = asyncHandler(async (req, res) => {
   try {
@@ -7851,6 +7768,7 @@ module.exports = {
   updateAddress,
   updateBuyerLanguage,
   getHighlightedCoupon,
+  getfiltredCouponToUser,
   getHighlightedCouponByVendor,
   getPickupLocationDetails,
   getPickupLocationDetailsPost,

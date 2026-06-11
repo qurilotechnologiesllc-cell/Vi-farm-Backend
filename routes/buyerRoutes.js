@@ -40,6 +40,7 @@ const {
   getOrderDetails,
   startCheckout,
   getHighlightedCoupon,
+  getfiltredCouponToUser,
   getHighlightedCouponByVendor,
   getPickupLocationDetails,
   selectPickupSlot,
@@ -148,6 +149,7 @@ router.post('/delivery/address', saveDeliveryAddress);
 router.get('/coupons/available', getAvailableCouponsForBuyer);
 router.get('/coupons/product/:productId', getCouponsByProductId);
 router.get('/coupons/highlighted', getHighlightedCoupon);
+router.get('/coupons/filtred', getfiltredCouponToUser);
 router.get("/coupons/highlighted/filter", getHighlightedCouponByVendor);
 router.get("/cart/delivery-charge", getDeliveryChargeController);
 

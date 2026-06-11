@@ -1744,6 +1744,7 @@ const createCoupon = asyncHandler(async (req, res) => {
       totalUsageLimit = 0,
       startDate,
       expiryDate,
+      vendorId,
       appliesTo = [],
     } = req.body;
 
@@ -1821,7 +1822,7 @@ const createCoupon = asyncHandler(async (req, res) => {
       expiryDate,
       appliesTo: finalCategoryIds,
       applicableProducts: productIds,
-      vendor: null,
+      vendor: vendorId || null,
       createdBy: adminId,
     });
 
@@ -1955,6 +1956,7 @@ const getAdminCoupons = asyncHandler(async (req, res) => {
             image: p.images?.[0] || null,
             categoryName: p.category?.name || "No Category",
             vendorName: p.vendor?.name || "No Vendor",
+            vendorId: p.vendor?._id || null,
           })),
         };
       })
