@@ -113,10 +113,8 @@ userSchema.index({ location: '2dsphere' });
 // =======================================
 userSchema.pre('save', async function (next) {
   try {
-    // 🟢 Vendors require location
     if (this.role === 'Vendor') {
-      const addr =
-        this.vendorDetails.location || null;
+      const addr = this.vendorDetails.location || null;
 
       // 🔄 Address → Coordinates
       if (addr && (!this.location?.coordinates || this.location.coordinates[0] === 0)) {
@@ -124,24 +122,26 @@ userSchema.pre('save', async function (next) {
         if (coords) this.location = { type: 'Point', coordinates: coords };
       }
 
-      // 🔄 Coordinates → Address
+      // 🔄 Coordinates → Address (only when location actually changed)
       else if (
         this.location?.coordinates &&
+        this.isModified('location') &&
         (!this.vendorDetails.location || this.vendorDetails.location === '')
       ) {
         const [lng, lat] = this.location.coordinates;
         const addressData = await coordsToAddress(lat, lng);
 
-        if (addressData && addressData.fullAddress) {
+        if (addressData?.fullAddress) {
           this.vendorDetails.location = addressData.fullAddress;
 
-          if (!this.address.city) this.address.city = addressData.city;
-          if (!this.address.state) this.address.state = addressData.state;
-          if (!this.address.pinCode) this.address.pinCode = addressData.pinCode;
+          if (this.address) {
+            if (!this.address.city) this.address.city = addressData.city;
+            if (!this.address.state) this.address.state = addressData.state;
+            if (!this.address.pinCode) this.address.pinCode = addressData.pinCode;
+          }
         }
       }
 
-      // Non-vendor cleanup
     } else {
       this.location = { type: 'Point', coordinates: [0, 0] };
     }
